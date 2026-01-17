@@ -77,6 +77,19 @@ CREATE TABLE IF NOT EXISTS perfume_performance (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS perfume_wardrobe_edges (
+  perfume_id BIGINT NOT NULL,
+  related_perfume_id BIGINT NOT NULL,
+  user_count INT NOT NULL CHECK (user_count > 0),
+  PRIMARY KEY (perfume_id, related_perfume_id)
+);
+
+CREATE INDEX IF NOT EXISTS perfume_wardrobe_edges_perfume_id_idx
+  ON perfume_wardrobe_edges (perfume_id);
+
+CREATE INDEX IF NOT EXISTS perfume_wardrobe_edges_related_perfume_id_idx
+  ON perfume_wardrobe_edges (related_perfume_id);
+
 -- Indexes for fast filtering/search
 CREATE INDEX IF NOT EXISTS perfumes_brand_idx ON perfumes (brand);
 CREATE INDEX IF NOT EXISTS perfumes_year_idx ON perfumes (year);
