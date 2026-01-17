@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import { logger, requestIdMiddleware } from "./lib/logger";
 import { errorHandler } from "./lib/errorHandler";
 import healthRouter from "./routes/hello";
+import recommendationsRouter from "./routes/recommendations";
 
 dotenv.config();
 
@@ -29,7 +30,10 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
 
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
@@ -41,6 +45,7 @@ app.use((req, res, next) => {
 });
 
 app.use("/api/v1", healthRouter);
+app.use("/api/v1/recommendations", recommendationsRouter);
 
 app.use(errorHandler);
 
