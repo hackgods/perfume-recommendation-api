@@ -5,7 +5,7 @@ import swaggerUi from "swagger-ui-express";
 import { logger, requestIdMiddleware } from "./lib/logger";
 import { errorHandler } from "./lib/errorHandler";
 import { swaggerSpec } from "./config/swagger";
-import healthRouter from "./routes/hello";
+import healthRouter from "./routes/health";
 import recommendationsRouter from "./routes/recommendations";
 
 dotenv.config();
