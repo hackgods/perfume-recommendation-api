@@ -125,55 +125,67 @@ dna_overlap AS (
 	c.id AS perfume_id,
 
 	-- Shared weighted overlap for notes
-	COALESCE((
-	  SELECT SUM(LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)))
-	  FROM user_notes un
-	  CROSS JOIN LATERAL jsonb_array_elements(d.dna->'notes') elem
-	  WHERE COALESCE((un.m->>(elem->>'t'))::float, 0) > 0
-	), 0) AS shared_notes_w,
-
-	-- Shared weighted overlap for accords
-	COALESCE((
-	  SELECT SUM(LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)))
-	  FROM user_accords ua
-	  CROSS JOIN LATERAL jsonb_array_elements(d.dna->'accords') elem
-	  WHERE COALESCE((ua.m->>(elem->>'t'))::float, 0) > 0
-	), 0) AS shared_accords_w,
-
-	-- Top shared notes (for UI)
-	COALESCE((
-	  SELECT jsonb_agg(s.token ORDER BY s.shared DESC)
-	  FROM (
-		SELECT
-		  (elem->>'t') AS token,
-		  LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)) AS shared
+	CASE
+	  WHEN d.dna IS NULL THEN 0
+	  ELSE COALESCE((
+		SELECT SUM(LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)))
 		FROM user_notes un
 		CROSS JOIN LATERAL jsonb_array_elements(d.dna->'notes') elem
 		WHERE COALESCE((un.m->>(elem->>'t'))::float, 0) > 0
-		  AND LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)) > 0
-		ORDER BY LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)) DESC
-		LIMIT 3
-	  ) s
-	), '[]'::jsonb) AS shared_notes_top3,
+	  ), 0)
+	END AS shared_notes_w,
 
-	-- Top shared accords (for UI)
-	COALESCE((
-	  SELECT jsonb_agg(s.token ORDER BY s.shared DESC)
-	  FROM (
-		SELECT
-		  (elem->>'t') AS token,
-		  LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)) AS shared
+	-- Shared weighted overlap for accords
+	CASE
+	  WHEN d.dna IS NULL THEN 0
+	  ELSE COALESCE((
+		SELECT SUM(LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)))
 		FROM user_accords ua
 		CROSS JOIN LATERAL jsonb_array_elements(d.dna->'accords') elem
 		WHERE COALESCE((ua.m->>(elem->>'t'))::float, 0) > 0
-		  AND LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)) > 0
-		ORDER BY LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)) DESC
-		LIMIT 3
-	  ) s
-	), '[]'::jsonb) AS shared_accords_top3
+	  ), 0)
+	END AS shared_accords_w,
+
+	-- Top shared notes (for UI)
+	CASE
+	  WHEN d.dna IS NULL THEN '[]'::jsonb
+	  ELSE COALESCE((
+		SELECT jsonb_agg(s.token ORDER BY s.shared DESC)
+		FROM (
+		  SELECT
+			(elem->>'t') AS token,
+			LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)) AS shared
+		  FROM user_notes un
+		  CROSS JOIN LATERAL jsonb_array_elements(d.dna->'notes') elem
+		  WHERE COALESCE((un.m->>(elem->>'t'))::float, 0) > 0
+			AND LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)) > 0
+		  ORDER BY LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)) DESC
+		  LIMIT 3
+		) s
+	  ), '[]'::jsonb)
+	END AS shared_notes_top3,
+
+	-- Top shared accords (for UI)
+	CASE
+	  WHEN d.dna IS NULL THEN '[]'::jsonb
+	  ELSE COALESCE((
+		SELECT jsonb_agg(s.token ORDER BY s.shared DESC)
+		FROM (
+		  SELECT
+			(elem->>'t') AS token,
+			LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)) AS shared
+		  FROM user_accords ua
+		  CROSS JOIN LATERAL jsonb_array_elements(d.dna->'accords') elem
+		  WHERE COALESCE((ua.m->>(elem->>'t'))::float, 0) > 0
+			AND LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)) > 0
+		  ORDER BY LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)) DESC
+		  LIMIT 3
+		) s
+	  ), '[]'::jsonb)
+	END AS shared_accords_top3
 
   FROM candidates c
-  JOIN perfume_dna d ON d.perfume_id = c.id
+  LEFT JOIN perfume_dna d ON d.perfume_id = c.id
 ),
 
 -- Determine which liked perfume this candidate is most similar to (for "because similar to X")
@@ -209,11 +221,12 @@ scored AS (
 	-- 0..1 similarity (clamped), assuming reasonably normalized vectors
 	GREATEST(0.0, LEAST(1.0, 1.0 - (c.cosine_distance / 2.0))) AS sim01,
 
-	-- DNA overlap 0..1 (normalize by user totals; if missing, 0)
-	(
-	  0.6 * (COALESCE(dna.shared_notes_w, 0) / NULLIF(COALESCE(un.total_w, 0), 0))
-	  + 0.4 * (COALESCE(dna.shared_accords_w, 0) / NULLIF(COALESCE(ua.total_w, 0), 0))
-	) AS dna01_raw,
+	-- DNA overlap 0..1 (normalize by user totals; if missing or zero totals, return 0)
+	COALESCE(
+	  0.6 * (COALESCE(dna.shared_notes_w, 0) / NULLIF(un.total_w, 0))
+	  + 0.4 * (COALESCE(dna.shared_accords_w, 0) / NULLIF(ua.total_w, 0)),
+	  0
+	) AS dna01,
 
 	-- Wardrobe affinity 0..1 (simple saturation)
 	LEAST(1.0, COALESCE(w.ward_sum_log, 0) / 5.0) AS ward01,
@@ -229,8 +242,8 @@ scored AS (
 
 	-- Explanation payload pieces
 	bc.liked_id AS because_similar_to,
-	dna.shared_notes_top3 AS why_shared_notes,
-	dna.shared_accords_top3 AS why_shared_accords,
+	COALESCE(dna.shared_notes_top3, '[]'::jsonb) AS why_shared_notes,
+	COALESCE(dna.shared_accords_top3, '[]'::jsonb) AS why_shared_accords,
 	COALESCE((SELECT jsonb_agg(x) FROM jsonb_array_elements(COALESCE(w.ward_pairs,'[]'::jsonb)) x LIMIT 2), '[]'::jsonb)
 	  AS why_wardrobe_top2,
 	CASE
@@ -242,13 +255,7 @@ scored AS (
 		  'sillage_votes', pf.sillage_votes
 		)
 	  ELSE NULL
-	END AS why_performance,
-
-	-- Clamp dna01 into 0..1
-	GREATEST(0.0, LEAST(1.0, (
-	  0.6 * (COALESCE(dna.shared_notes_w, 0) / NULLIF(COALESCE(un.total_w, 0), 0))
-	  + 0.4 * (COALESCE(dna.shared_accords_w, 0) / NULLIF(COALESCE(ua.total_w, 0), 0))
-	))) AS dna01
+	END AS why_performance
 
   FROM candidates c
   CROSS JOIN user_notes un
