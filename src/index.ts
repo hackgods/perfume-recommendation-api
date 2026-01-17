@@ -40,7 +40,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/api", healthRouter);
+app.use("/api/v1", healthRouter);
 
 app.use(errorHandler);
 
