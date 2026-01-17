@@ -1,8 +1,10 @@
 import express, { Express } from "express";
 import dotenv from "dotenv";
 import pinoHttp from "pino-http";
+import swaggerUi from "swagger-ui-express";
 import { logger, requestIdMiddleware } from "./lib/logger";
 import { errorHandler } from "./lib/errorHandler";
+import { swaggerSpec } from "./config/swagger";
 import healthRouter from "./routes/hello";
 import recommendationsRouter from "./routes/recommendations";
 
@@ -42,6 +44,12 @@ app.use((req, res, next) => {
   }
 
   next();
+});
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get("/api-docs.json", (_req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.send(swaggerSpec);
 });
 
 app.use("/api/v1", healthRouter);
