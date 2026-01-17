@@ -33,6 +33,12 @@ export interface RecommendationResult {
   name: string;
   brand: string;
   year: number | null;
+  description: string | null;
+  perfumer: string | null;
+  gender: string | null;
+  accords: string[];
+  notes: string[];
+  image: string;
   score: number;
   signals: RecommendationSignals;
   why: RecommendationWhy;

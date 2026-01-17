@@ -12,6 +12,11 @@ export interface SimilarPerfumesResult {
   name: string;
   brand: string;
   year: number | null;
+  description: string | null;
+  perfumer: string | null;
+  gender: string | null;
+  accords: string[];
+  notes_all: string[];
   final_score: number;
   signals: {
     sim: number;

@@ -63,6 +63,11 @@ candidates AS (
 	p.year,
 	p.rating,
 	p.total_votes,
+	p.description,
+	p.perfumer,
+	p.gender,
+	p.accords,
+	p.notes_all,
 	e.vector,
 	(e.vector <=> tv.v) AS cosine_distance
   FROM taste_vec tv
@@ -195,6 +200,11 @@ scored AS (
 	c.name,
 	c.brand,
 	c.year,
+	c.description,
+	c.perfumer,
+	c.gender,
+	c.accords,
+	c.notes_all,
 
 	-- 0..1 similarity (clamped), assuming reasonably normalized vectors
 	GREATEST(0.0, LEAST(1.0, 1.0 - (c.cosine_distance / 2.0))) AS sim01,
@@ -251,7 +261,25 @@ scored AS (
 
 ranked AS (
   SELECT
-	s.*,
+	s.id,
+	s.name,
+	s.brand,
+	s.year,
+	s.description,
+	s.perfumer,
+	s.gender,
+	s.accords,
+	s.notes_all,
+	s.sim01,
+	s.dna01,
+	s.ward01,
+	s.qual01,
+	s.perf01,
+	s.because_similar_to,
+	s.why_shared_notes,
+	s.why_shared_accords,
+	s.why_wardrobe_top2,
+	s.why_performance,
 
 	-- Final weighted score (0..1-ish)
 	(
@@ -279,6 +307,11 @@ SELECT
   name,
   brand,
   year,
+  description,
+  perfumer,
+  gender,
+  accords,
+  notes_all,
   final_score,
   jsonb_build_object(
 	'sim', sim01,

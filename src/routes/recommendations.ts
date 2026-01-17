@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { getSimilarPerfumesRecommendations } from "../services/recommendationService";
 import { ValidationError } from "../lib/errorHandler";
@@ -18,7 +18,7 @@ const similarPerfumesSchema = z.object({
   prefer_soft_projection: z.boolean().default(false).optional(),
 });
 
-router.post("/similar", async (req: Request, res: Response) => {
+router.post("/similar", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validationResult = similarPerfumesSchema.safeParse(req.body);
 
@@ -50,7 +50,7 @@ router.post("/similar", async (req: Request, res: Response) => {
       },
       "Error in similar perfumes recommendation"
     );
-    throw error;
+    next(error);
   }
 });
 

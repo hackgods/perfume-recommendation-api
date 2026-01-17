@@ -49,6 +49,27 @@ app.use("/api/v1/recommendations", recommendationsRouter);
 
 app.use(errorHandler);
 
+process.on("unhandledRejection", (reason: unknown, _promise: Promise<unknown>) => {
+  logger.error(
+    {
+      reason: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+    },
+    "Unhandled promise rejection"
+  );
+});
+
+process.on("uncaughtException", (error: Error) => {
+  logger.error(
+    {
+      error: error.message,
+      stack: error.stack,
+    },
+    "Uncaught exception"
+  );
+  process.exit(1);
+});
+
 app.listen(PORT, () => {
   logger.info({ port: PORT }, "Server started");
 });

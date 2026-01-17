@@ -68,6 +68,12 @@ export async function getSimilarPerfumesRecommendations(
     name: row.name,
     brand: row.brand,
     year: row.year,
+    description: row.description || null,
+    perfumer: row.perfumer || null,
+    gender: row.gender || null,
+    accords: Array.isArray(row.accords) ? row.accords : [],
+    notes: Array.isArray(row.notes_all) ? row.notes_all : [],
+    image: `https://fimgs.net/mdimg/perfume-thumbs/375x500.${row.id}.2x.avif`,
     score: Math.round(row.final_score * 1000) / 1000,
     signals: {
       sim: Math.round(row.signals.sim * 1000) / 1000,
