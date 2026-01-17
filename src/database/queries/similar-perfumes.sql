@@ -137,7 +137,7 @@ dna_overlap AS (
 
 	-- Top shared notes (for UI)
 	COALESCE((
-	  SELECT jsonb_agg(token ORDER BY shared DESC)
+	  SELECT jsonb_agg(s.token ORDER BY s.shared DESC)
 	  FROM (
 		SELECT
 		  (elem->>'t') AS token,
@@ -145,15 +145,15 @@ dna_overlap AS (
 		FROM user_notes un
 		CROSS JOIN LATERAL jsonb_array_elements(d.dna->'notes') elem
 		WHERE COALESCE((un.m->>(elem->>'t'))::float, 0) > 0
+		  AND LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)) > 0
+		ORDER BY LEAST((elem->>'w')::float, COALESCE((un.m->>(elem->>'t'))::float, 0)) DESC
+		LIMIT 3
 	  ) s
-	  WHERE shared > 0
-	  ORDER BY shared DESC
-	  LIMIT 3
 	), '[]'::jsonb) AS shared_notes_top3,
 
 	-- Top shared accords (for UI)
 	COALESCE((
-	  SELECT jsonb_agg(token ORDER BY shared DESC)
+	  SELECT jsonb_agg(s.token ORDER BY s.shared DESC)
 	  FROM (
 		SELECT
 		  (elem->>'t') AS token,
@@ -161,10 +161,10 @@ dna_overlap AS (
 		FROM user_accords ua
 		CROSS JOIN LATERAL jsonb_array_elements(d.dna->'accords') elem
 		WHERE COALESCE((ua.m->>(elem->>'t'))::float, 0) > 0
+		  AND LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)) > 0
+		ORDER BY LEAST((elem->>'w')::float, COALESCE((ua.m->>(elem->>'t'))::float, 0)) DESC
+		LIMIT 3
 	  ) s
-	  WHERE shared > 0
-	  ORDER BY shared DESC
-	  LIMIT 3
 	), '[]'::jsonb) AS shared_accords_top3
 
   FROM candidates c
