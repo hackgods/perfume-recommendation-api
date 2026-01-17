@@ -20,3 +20,7 @@ pool.on("error", (err: Error) => {
   console.error("Unexpected error on idle client", err);
   process.exit(-1);
 });
+
+pool.on("connect", async (client) => {
+  await client.query("SET ivfflat.probes = 10");
+});

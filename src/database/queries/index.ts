@@ -45,10 +45,15 @@ export async function getSimilarPerfumes(
 ): Promise<SimilarPerfumesResult[]> {
   const sql = loadSqlFile("similar-perfumes.sql");
 
-  const result = await pool.query<SimilarPerfumesResult>(sql, [
-    likedPerfumeIds,
-    limit,
-  ]);
-
-  return result.rows;
+  const client = await pool.connect();
+  try {
+    await client.query("SET ivfflat.probes = 10");
+    const result = await client.query<SimilarPerfumesResult>(sql, [
+      likedPerfumeIds,
+      limit,
+    ]);
+    return result.rows;
+  } finally {
+    client.release();
+  }
 }
