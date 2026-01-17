@@ -16,6 +16,7 @@ const similarPerfumesSchema = z.object({
   min_votes: z.number().int().nonnegative().default(0).optional(),
   prefer_longlasting: z.boolean().default(false).optional(),
   prefer_soft_projection: z.boolean().default(false).optional(),
+  gender: z.enum(["male", "female", "unisex"]).optional(),
 });
 
 router.post("/similar", async (req: Request, res: Response, next: NextFunction) => {

@@ -5,6 +5,7 @@
 -- Inputs:
 --   $1 :: bigint[]   -- liked_perfume_ids (size 1..10)
 --   $2 :: int        -- limit (e.g. 10)
+--   $3 :: text       -- gender filter (optional: 'male', 'female', 'unisex', or NULL for all)
 --
 -- Tables:
 --   perfumes(id, name, brand, year, rating, total_votes, ...)
@@ -74,6 +75,7 @@ candidates AS (
   JOIN perfume_embeddings e ON true
   JOIN perfumes p ON p.id = e.perfume_id
   WHERE p.id <> ALL ($1::bigint[])
+    AND ($3::text IS NULL OR p.gender = $3::text)
   ORDER BY e.vector <=> tv.v
   LIMIT 400
 ),

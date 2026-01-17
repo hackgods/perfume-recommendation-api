@@ -5,6 +5,7 @@ export interface SimilarPerfumesRequest {
   min_votes?: number;
   prefer_longlasting?: boolean;
   prefer_soft_projection?: boolean;
+  gender?: "male" | "female" | "unisex";
 }
 
 export interface RecommendationSignals {

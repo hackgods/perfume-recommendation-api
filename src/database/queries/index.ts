@@ -41,7 +41,8 @@ export interface SimilarPerfumesResult {
 
 export async function getSimilarPerfumes(
   likedPerfumeIds: number[],
-  limit: number
+  limit: number,
+  gender?: "male" | "female" | "unisex" | null
 ): Promise<SimilarPerfumesResult[]> {
   const sql = loadSqlFile("similar-perfumes.sql");
 
@@ -51,6 +52,7 @@ export async function getSimilarPerfumes(
     const result = await client.query<SimilarPerfumesResult>(sql, [
       likedPerfumeIds,
       limit,
+      gender || null,
     ]);
     return result.rows;
   } finally {

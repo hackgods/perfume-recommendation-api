@@ -11,7 +11,7 @@ export async function getSimilarPerfumesRecommendations(
   request: SimilarPerfumesRequest,
   requestId?: string
 ): Promise<SimilarPerfumesResponse> {
-  const { liked_perfume_ids, limit = 10 } = request;
+  const { liked_perfume_ids, limit = 10, gender } = request;
 
   if (liked_perfume_ids.length === 0) {
     throw new ValidationError("At least one liked perfume ID is required", requestId);
@@ -61,7 +61,7 @@ export async function getSimilarPerfumesRecommendations(
     );
   }
 
-  const dbResults = await getSimilarPerfumes(perfumeIds, validLimit);
+  const dbResults = await getSimilarPerfumes(perfumeIds, validLimit, gender);
 
   const results: RecommendationResult[] = dbResults.map((row) => ({
     id: row.id,
