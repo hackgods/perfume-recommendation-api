@@ -28,6 +28,21 @@ liked_count AS (
   SELECT COUNT(*)::int AS n FROM liked
 ),
 
+-- Calculate average similarity between liked perfumes (for clone suppression)
+-- This helps detect if a candidate is more similar to liked perfumes than the liked perfumes are to each other
+-- Converts cosine distance to similarity score (1.0 - distance/2.0)
+liked_similarity_avg AS (
+  SELECT
+    CASE
+      WHEN (SELECT COUNT(*) FROM liked) < 2 THEN 0.0::float
+      ELSE AVG(GREATEST(0.0, LEAST(1.0, 1.0 - ((le1.vector <=> le2.vector) / 2.0))))::float
+    END AS avg_liked_sim
+  FROM liked a
+  JOIN liked b ON b.perfume_id > a.perfume_id
+  JOIN perfume_embeddings le1 ON le1.perfume_id = a.perfume_id
+  JOIN perfume_embeddings le2 ON le2.perfume_id = b.perfume_id
+),
+
 taste_vec AS (
   SELECT AVG(e.vector) AS v
   FROM perfume_embeddings e
@@ -196,11 +211,13 @@ dna_overlap AS (
 ),
 
 -- Determine which liked perfume this candidate is most similar to (for "because similar to X")
+-- Also calculate similarity to closest liked perfume for clone suppression
 because AS (
   SELECT
 	c.id AS perfume_id,
 	b.liked_id,
-	b.dist
+	b.dist,
+	GREATEST(0.0, LEAST(1.0, 1.0 - (b.dist / 2.0))) AS sim_to_closest_liked
   FROM candidates c
   JOIN LATERAL (
 	SELECT
@@ -262,7 +279,11 @@ scored AS (
 		  'sillage_votes', pf.sillage_votes
 		)
 	  ELSE NULL
-	END AS why_performance
+	END AS why_performance,
+
+	-- Novelty detection values (carried forward from joins)
+	COALESCE(bc.sim_to_closest_liked, 0.0) AS sim_to_closest_liked,
+	lsa.avg_liked_sim
 
   FROM candidates c
   CROSS JOIN user_notes un
@@ -271,6 +292,7 @@ scored AS (
   LEFT JOIN perf pf ON pf.perfume_id = c.id
   LEFT JOIN dna_overlap dna ON dna.perfume_id = c.id
   LEFT JOIN because bc ON bc.perfume_id = c.id
+  CROSS JOIN liked_similarity_avg lsa
 ),
 
 ranked AS (
@@ -294,15 +316,48 @@ ranked AS (
 	s.why_shared_accords,
 	s.why_wardrobe_top2,
 	s.why_performance,
+	s.sim_to_closest_liked,
+	s.avg_liked_sim,
 
-	-- Final weighted score (0..1-ish)
+	-- Base weighted score (before novelty penalty)
 	(
 	  COALESCE($4::float, 0.45) * s.sim01
 	  + COALESCE($5::float, 0.20) * s.dna01
 	  + COALESCE($6::float, 0.25) * s.ward01
 	  + COALESCE($7::float, 0.07) * s.qual01
 	  + COALESCE($8::float, 0.03) * s.perf01
-	) AS final_score,
+	) AS base_score,
+
+	-- Novelty penalty: penalize over-similarity (clones, near-duplicates)
+	-- Bell curve: low similarity bad, medium-high good, extremely high bad
+	-- Uses sim_to_closest_liked (distance to nearest liked perfume) for clone detection
+	CASE
+	  -- Strong clone zone: very high similarity to closest liked + high DNA overlap
+	  WHEN s.sim_to_closest_liked > 0.92 AND s.dna01 > 0.75 THEN 0.60
+	  -- Moderate clone zone: high similarity to closest liked + moderate DNA overlap
+	  WHEN s.sim_to_closest_liked > 0.88 AND s.dna01 > 0.65 THEN 0.80
+	  -- Clone suppression: candidate more similar to a liked perfume than liked perfumes are to each other
+	  -- Penalize if candidate is meaningfully more similar (by 0.05) than the average inter-liked similarity
+	  WHEN s.avg_liked_sim > 0 AND s.sim_to_closest_liked > (s.avg_liked_sim + 0.05) THEN 0.70
+	  -- No penalty: ideal similarity range
+	  ELSE 1.00
+	END AS novelty_penalty,
+
+	-- Final score with novelty penalty applied
+	(
+	  COALESCE($4::float, 0.45) * s.sim01
+	  + COALESCE($5::float, 0.20) * s.dna01
+	  + COALESCE($6::float, 0.25) * s.ward01
+	  + COALESCE($7::float, 0.07) * s.qual01
+	  + COALESCE($8::float, 0.03) * s.perf01
+	)
+	*
+	CASE
+	  WHEN s.sim_to_closest_liked > 0.92 AND s.dna01 > 0.75 THEN 0.60
+	  WHEN s.sim_to_closest_liked > 0.88 AND s.dna01 > 0.65 THEN 0.80
+	  WHEN s.avg_liked_sim > 0 AND s.sim_to_closest_liked > (s.avg_liked_sim + 0.05) THEN 0.70
+	  ELSE 1.00
+	END AS final_score,
 
 	ROW_NUMBER() OVER (PARTITION BY s.brand ORDER BY
 	  (
@@ -311,7 +366,14 @@ ranked AS (
 		+ COALESCE($6::float, 0.25) * s.ward01
 		+ COALESCE($7::float, 0.07) * s.qual01
 		+ COALESCE($8::float, 0.03) * s.perf01
-	  ) DESC
+	  )
+	  *
+	  CASE
+		WHEN s.sim_to_closest_liked > 0.92 AND s.dna01 > 0.75 THEN 0.60
+		WHEN s.sim_to_closest_liked > 0.88 AND s.dna01 > 0.65 THEN 0.80
+		WHEN s.avg_liked_sim > 0 AND s.sim_to_closest_liked > (s.avg_liked_sim + 0.05) THEN 0.70
+		ELSE 1.00
+	  END DESC
 	) AS brand_rank
   FROM scored s
 )
@@ -326,6 +388,8 @@ SELECT
   gender,
   accords,
   notes_all,
+  base_score,
+  novelty_penalty,
   final_score,
   jsonb_build_object(
 	'sim', sim01,
