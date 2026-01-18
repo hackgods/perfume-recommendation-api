@@ -12,7 +12,7 @@ import perfumesRouter from "./routes/perfumes";
 dotenv.config();
 
 const app: Express = express();
-const PORT = process.env.PORT || 4000;
+const PORT: number = Number(process.env.PORT) || 4000;
 
 app.use(requestIdMiddleware);
 app.use((req, _res, next) => {
@@ -83,6 +83,6 @@ process.on("uncaughtException", (error: Error) => {
   process.exit(1);
 });
 
-app.listen(PORT, () => {
-  logger.info({ port: PORT }, "Server started");
+app.listen(PORT, "0.0.0.0", () => {
+  logger.info({ port: PORT, host: "0.0.0.0" }, "Server started");
 });
