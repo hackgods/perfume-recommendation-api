@@ -333,10 +333,14 @@ ranked AS (
 	-- Bell curve: low similarity bad, medium-high good, extremely high bad
 	-- Uses sim_to_closest_liked (distance to nearest liked perfume) for clone detection
 	CASE
+	  -- Extreme DNA overlap (>0.90) = likely clone regardless of similarity
+	  WHEN s.dna01 > 0.90 THEN 0.55
 	  -- Strong clone zone: very high similarity to closest liked + high DNA overlap
-	  WHEN s.sim_to_closest_liked > 0.92 AND s.dna01 > 0.75 THEN 0.60
+	  WHEN s.sim_to_closest_liked > 0.90 AND s.dna01 > 0.75 THEN 0.60
+	  -- High DNA overlap (>0.85) with moderate-high similarity = likely clone
+	  WHEN s.dna01 > 0.85 AND s.sim_to_closest_liked > 0.85 THEN 0.65
 	  -- Moderate clone zone: high similarity to closest liked + moderate DNA overlap
-	  WHEN s.sim_to_closest_liked > 0.88 AND s.dna01 > 0.65 THEN 0.80
+	  WHEN s.sim_to_closest_liked > 0.87 AND s.dna01 > 0.65 THEN 0.80
 	  -- Clone suppression: candidate more similar to a liked perfume than liked perfumes are to each other
 	  -- Penalize if candidate is meaningfully more similar (by 0.05) than the average inter-liked similarity
 	  WHEN s.avg_liked_sim > 0 AND s.sim_to_closest_liked > (s.avg_liked_sim + 0.05) THEN 0.70
@@ -354,8 +358,10 @@ ranked AS (
 	)
 	*
 	CASE
-	  WHEN s.sim_to_closest_liked > 0.92 AND s.dna01 > 0.75 THEN 0.60
-	  WHEN s.sim_to_closest_liked > 0.88 AND s.dna01 > 0.65 THEN 0.80
+	  WHEN s.dna01 > 0.90 THEN 0.50
+	  WHEN s.sim_to_closest_liked > 0.90 AND s.dna01 > 0.75 THEN 0.60
+	  WHEN s.dna01 > 0.85 AND s.sim_to_closest_liked > 0.85 THEN 0.65
+	  WHEN s.sim_to_closest_liked > 0.87 AND s.dna01 > 0.65 THEN 0.80
 	  WHEN s.avg_liked_sim > 0 AND s.sim_to_closest_liked > (s.avg_liked_sim + 0.05) THEN 0.70
 	  ELSE 1.00
 	END AS final_score,
@@ -371,8 +377,10 @@ ranked AS (
 	  )
 	  *
 	  CASE
-		WHEN s.sim_to_closest_liked > 0.92 AND s.dna01 > 0.75 THEN 0.60
-		WHEN s.sim_to_closest_liked > 0.88 AND s.dna01 > 0.65 THEN 0.80
+		WHEN s.dna01 > 0.90 THEN 0.50
+		WHEN s.sim_to_closest_liked > 0.90 AND s.dna01 > 0.75 THEN 0.60
+		WHEN s.dna01 > 0.85 AND s.sim_to_closest_liked > 0.85 THEN 0.65
+		WHEN s.sim_to_closest_liked > 0.87 AND s.dna01 > 0.65 THEN 0.80
 		WHEN s.avg_liked_sim > 0 AND s.sim_to_closest_liked > (s.avg_liked_sim + 0.05) THEN 0.70
 		ELSE 1.00
 	  END DESC
