@@ -265,7 +265,7 @@ router.get("/:id/dna", async (req: Request, res: Response, next: NextFunction) =
  *                 requestId: "abc123"
  *                 target_perfume_id: 84109
  *       400:
- *         $ref: '#/components/responses/BadRequest'
+ *         $ref: '#/components/responses/ValidationError'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  *       500:
