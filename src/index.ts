@@ -12,7 +12,7 @@ import perfumesRouter from "./routes/perfumes";
 dotenv.config();
 
 const app: Express = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 app.use(requestIdMiddleware);
 app.use((req, _res, next) => {
