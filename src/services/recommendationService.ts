@@ -3,6 +3,8 @@ import {
   getSimilarPerfumes,
   getPerfumeDna,
   getUserFingerprint,
+  findClones,
+  CloneFinderResult,
 } from "../database/queries";
 import {
   SimilarPerfumesRequest,
@@ -241,4 +243,27 @@ export async function getUserTasteFingerprint(
   fingerprint.summary = generateTasteSummary(fingerprint);
 
   return fingerprint;
+}
+
+export async function findPerfumeClones(
+  targetPerfumeId: number,
+  limit: number = 3
+): Promise<CloneFinderResult[]> {
+  // Validate perfume exists
+  const checkResult = await pool.query("SELECT id, name FROM perfumes WHERE id = $1", [
+    targetPerfumeId,
+  ]);
+
+  if (checkResult.rows.length === 0) {
+    throw new NotFoundError(`Perfume with ID ${targetPerfumeId} not found`);
+  }
+
+  // Find clones
+  const clones = await findClones(targetPerfumeId, limit);
+
+  // Add image URLs
+  return clones.map((clone) => ({
+    ...clone,
+    image: `https://fimgs.net/mdimg/perfume-thumbs/375x500.${clone.id}.2x.avif`,
+  }));
 }

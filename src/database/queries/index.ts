@@ -206,3 +206,53 @@ export async function getUserFingerprint(
 
   return result.rows[0];
 }
+
+export interface CloneFinderResult {
+  id: number;
+  name: string;
+  brand: string;
+  year: number | null;
+  description: string | null;
+  perfumer: string | null;
+  gender: string | null;
+  accords: string[];
+  notes_all: string[];
+  rating: number | null;
+  total_votes: number | null;
+  clone_score: number;
+  confidence: "very_high" | "high" | "medium" | "low";
+  signals: {
+    embedding_sim: number;
+    dna_overlap: number;
+    wardrobe_score: number;
+    performance_sim: number;
+    family_bonus: number;
+  };
+  why: {
+    shared_notes: string[];
+    shared_accords: string[];
+    wardrobe_co_occur: number | null;
+    performance: {
+      longevity: number | null;
+      sillage: number | null;
+      longevity_votes: number | null;
+      sillage_votes: number | null;
+    } | null;
+  };
+}
+
+export async function findClones(
+  targetPerfumeId: number,
+  limit: number = 3
+): Promise<CloneFinderResult[]> {
+  const sql = loadSqlFile("find-clones.sql");
+  const client = await pool.connect();
+  try {
+    // Set ivfflat probes for vector similarity search
+    await client.query("SET ivfflat.probes = 10");
+    const result = await client.query<CloneFinderResult>(sql, [targetPerfumeId, limit]);
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
