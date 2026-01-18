@@ -7,6 +7,7 @@ import { errorHandler } from "./lib/errorHandler";
 import { swaggerSpec } from "./config/swagger";
 import healthRouter from "./routes/health";
 import recommendationsRouter from "./routes/recommendations";
+import perfumesRouter from "./routes/perfumes";
 
 dotenv.config();
 
@@ -53,19 +54,23 @@ app.get("/api-docs.json", (_req, res) => {
 });
 
 app.use("/api/v1", healthRouter);
-app.use("/api/v1/recommendations", recommendationsRouter);
+app.use("/api/v1/perfumes", recommendationsRouter);
+app.use("/api/v1/perfumes", perfumesRouter);
 
 app.use(errorHandler);
 
-process.on("unhandledRejection", (reason: unknown, _promise: Promise<unknown>) => {
-  logger.error(
-    {
-      reason: reason instanceof Error ? reason.message : String(reason),
-      stack: reason instanceof Error ? reason.stack : undefined,
-    },
-    "Unhandled promise rejection"
-  );
-});
+process.on(
+  "unhandledRejection",
+  (reason: unknown, _promise: Promise<unknown>) => {
+    logger.error(
+      {
+        reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+      },
+      "Unhandled promise rejection"
+    );
+  }
+);
 
 process.on("uncaughtException", (error: Error) => {
   logger.error(

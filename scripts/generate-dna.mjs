@@ -32,114 +32,171 @@ function toArray(map) {
     .map(([t, w]) => ({ t, w: Number(w.toFixed(6)) }));
 }
 
-function familiesFrom(accords = [], notesAll = []) {
-  const a = new Set(accords.map(normToken));
-  const n = new Set(notesAll.map(normToken));
-  const hasAny = (set, arr) => arr.some(x => set.has(x));
+// Define family indicators (accords/notes that signal each family)
+const FAMILY_INDICATORS = {
+  "family:fresh": {
+    accords: [
+      "citrus", "citruses", "bergamot", "lemon", "lime", "yuzu", "citron",
+      "grapefruit", "pomelo", "mandarin", "tangerine", "orange", "clementine",
+      "kumquat", "finger lime", "litsea cubeba", "verbena", "vervain",
+      "petitgrain", "orange leaf", "orange peel",
+      "aquatic", "aqual", "aquozone", "ozonic", "water notes", "watery notes",
+      "sea notes", "sea water", "sea salt", "salt", "marine notes", "algae",
+      "seaweed", "seagrass", "mineral notes", "rain notes", "steam accord",
+      "dew drop", "ice",
+      "green", "green notes", "green leaves", "grass", "green grass", "ivy",
+      "herbal notes", "aromatic notes", "aromatic spices", "clary sage",
+      "sage", "basil", "rosemary", "thyme", "mint", "spearmint", "peppermint",
+      "eucalyptus", "juniper", "juniper berries", "bay leaf", "cypress",
+      "cypress leaf", "mugane",
+      "aldehydes", "evernyl"
+    ],
+    notes: []
+  },
+  "family:woody": {
+    accords: [
+      "woody", "woods", "woodsy notes", "precious woods", "blonde woods",
+      "dry wood", "driftwood", "teak wood", "mahogany", "ebony", "ebony wood",
+      "cedar", "cedarwood", "atlas cedar", "virginia cedar", "texas cedar",
+      "chinese cedar", "himalayan cedar",
+      "sandalwood", "guaiac wood", "palo santo", "hinoki wood",
+      "amyris", "cashmeran", "cashmere wood", "amberwood", "georgywood",
+      "belambra tree", "wolfwood", "akigalawood", "clearwood",
+      "iso e super",
+      "vetiver", "patchouli", "oak", "oakmoss", "moss", "papyrus", "paper",
+      "cork", "sycamore", "forest fruits"
+    ],
+    notes: []
+  },
+  "family:amber": {
+    accords: [
+      "amber", "white amber", "black amber", "ambergris", "amberwood",
+      "amber xtreme", "ambermax", "ambrofix", "ambrox", "ambroxan", "cetalox",
+      "orcanox", "mystikal", "sclarene", "nympheal", "physcool",
+      "benzoin", "siam benzoin", "labdanum", "olibanum", "opoponax",
+      "elemi", "elemi resin", "frankincense", "incense",
+      "resin", "resins", "tolu balsam", "peru balsam", "copaiba balm",
+      "gurjan balsam", "styrax", "cistus incanus",
+      "smoke", "oud smoke", "coal", "gunpowder", "tar", "birch tar", "cade oil"
+    ],
+    notes: []
+  },
+  "family:gourmand": {
+    accords: [
+      "sweet", "sweet notes", "sugar", "brown sugar", "burnt sugar", "sugar cane",
+      "caramel", "toffee", "praline", "cotton candy", "marshmallow", "marshamallow",
+      "bubble gum", "coca-cola", "tonic water",
+      "vanilla", "ethylvanillin", "coumarin", "tonka", "tonka bean",
+      "chocolate", "dark chocolate", "cocoa", "cacao", "cacao butter", "milk chocolate",
+      "coffee", "espresso", "mocha", "cappuccino",
+      "milk", "condensed milk", "almond milk", "soy milk", "custard",
+      "butter", "buttercream", "ice cream", "kulfi",
+      "cake", "cupcake", "cookie", "biscuit", "cone waffle", "madeleine",
+      "creme brulee", "panacotta", "meringue", "puff pastry", "bread",
+      "chestnut", "hazelnut", "pistachio", "walnut", "sesame",
+      "liquor", "rum", "whiskey", "bourbon whiskey", "brandy", "cognac",
+      "champagne", "beer", "ale", "amaretto", "aperol",
+      "candied", "dragée", "jellybean", "gummy candies", "popcorn",
+      "fruity notes", "fruits", "dried fruits"
+    ],
+    notes: []
+  },
+  "family:floral": {
+    accords: [
+      "floral", "flowers", "floral notes", "floral bouquet", "exotic floral notes",
+      "rose", "damask rose", "bulgarian rose", "turkish rose", "taif rose",
+      "grasse rose", "rose de mai", "may rose", "tea rose", "rose water",
+      "jasmine", "jasmine sambac", "egyptian jasmine", "indian jasmine",
+      "orange blossom", "neroli", "tuberose", "ylang ylang", "tiare flower",
+      "gardenia", "magnolia", "lily", "lily of the valley", "hyacinth",
+      "freesia", "peony", "violet", "parma violet", "iris", "orris", "orris root",
+      "osmanthus", "narcissus", "mimosa", "honeysuckle", "frangipani",
+      "lotus", "water lily", "orchid", "black orchid", "white orchid",
+      "chrysanthemum", "carnation", "calla lily", "camelia", "blue lotus",
+      "poppy", "red poppy", "amaryllis", "bellflower", "bluebell",
+      "wisteria", "hibiscus", "rangoon creeper", "mock orange",
+      "almond blossom", "apple blossom", "peach blossom", "pear blossom",
+      "mango blossom", "olive blossom", "coconut blossom", "silk tree blossom"
+    ],
+    notes: []
+  },
+  "family:musky": {
+    accords: [
+      "musk", "white musk", "natural musk", "ambrette", "ambrette (musk mallow)",
+      "ambrettolide", "helvetolide", "serenolide", "sylkolide",
+      "powdery notes", "soap", "cotton flower", "skin", "silk",
+      "aldehydes"
+    ],
+    notes: []
+  },
+  "family:spicy": {
+    accords: [
+      "spices", "spicy notes", "aromatic spices",
+      "pepper", "black pepper", "white pepper", "pink pepper", "sichuan pepper",
+      "timur", "paprika", "chili pepper", "pimento", "pimento seeds", "pimento leaf",
+      "cinnamon", "ceylon cinnamon", "clove", "cloves", "cardamom", "cardamon",
+      "nutmeg", "indonesian nutmeg", "caraway", "cumin", "fenugreek",
+      "fennel", "anise", "star anise", "saffron", "ginger", "indian ginger",
+      "nigerian ginger", "tarragon", "oregano", "thyme"
+    ],
+    notes: []
+  },
+  "family:fruity": {
+    accords: [],
+    notes: [
+      "apple", "pear", "peach", "apricot", "plum", "cherry", "sour cherry",
+      "berry", "berries", "strawberry", "raspberry", "blueberry", "blackberry",
+      "black currant", "blackcurrant", "currant", "pomegranate", "grapes",
+      "mango", "banana", "kiwi", "lychee", "litchi", "nectarine", "papaya",
+      "melon", "watermelon", "fig", "quince", "dates", "cranberry", "guava",
+      "passionfruit", "pitahaya", "prickly pear", "nashi pear", "citrus"
+    ]
+  },
+  "family:leather": {
+    accords: [
+      "leather", "russian leather", "saffiano leather", "suede",
+      "animal notes", "civet", "castoreum", "blood", "skin", "rubber"
+    ],
+    notes: []
+  }
+};
 
-  const fam = new Set();
+// Normalize all family indicators
+for (const [family, indicators] of Object.entries(FAMILY_INDICATORS)) {
+  FAMILY_INDICATORS[family].accords = new Set(indicators.accords.map(normToken));
+  FAMILY_INDICATORS[family].notes = new Set(indicators.notes.map(normToken));
+}
 
-  if (hasAny(a, [
-    "citrus", "citruses", "bergamot", "lemon", "lime", "yuzu", "citron",
-    "grapefruit", "pomelo", "mandarin", "tangerine", "orange", "clementine",
-    "kumquat", "finger lime", "litsea cubeba", "verbena", "vervain",
-    "petitgrain", "orange leaf", "orange peel",
-    "aquatic", "aqual", "aquozone", "ozonic", "water notes", "watery notes",
-    "sea notes", "sea water", "sea salt", "salt", "marine notes", "algae",
-    "seaweed", "seagrass", "mineral notes", "rain notes", "steam accord",
-    "dew drop", "ice",
-    "green", "green notes", "green leaves", "grass", "green grass", "ivy",
-    "herbal notes", "aromatic notes", "aromatic spices", "clary sage",
-    "sage", "basil", "rosemary", "thyme", "mint", "spearmint", "peppermint",
-    "eucalyptus", "juniper", "juniper berries", "bay leaf", "cypress",
-    "cypress leaf", "mugane",
-    "aldehydes", "evernyl"
-  ])) fam.add("family:fresh");
-  if (hasAny(a, [
-    "woody", "woods", "woodsy notes", "precious woods", "blonde woods",
-    "dry wood", "driftwood", "teak wood", "mahogany", "ebony", "ebony wood",
-    "cedar", "cedarwood", "atlas cedar", "virginia cedar", "texas cedar",
-    "chinese cedar", "himalayan cedar",
-    "sandalwood", "guaiac wood", "palo santo", "hinoki wood",
-    "amyris", "cashmeran", "cashmere wood", "amberwood", "georgywood",
-    "belambra tree", "wolfwood", "akigalawood", "clearwood",
-    "iso e super",
-    "vetiver", "patchouli", "oak", "oakmoss", "moss", "papyrus", "paper",
-    "cork", "sycamore", "forest fruits"
-  ])) fam.add("family:woody");
-  if (hasAny(a, [
-    "amber", "white amber", "black amber", "ambergris", "amberwood",
-    "amber xtreme", "ambermax", "ambrofix", "ambrox", "ambroxan", "cetalox",
-    "orcanox", "mystikal", "sclarene", "nympheal", "physcool",
-    "benzoin", "siam benzoin", "labdanum", "olibanum", "opoponax",
-    "elemi", "elemi resin", "frankincense", "incense",
-    "resin", "resins", "tolu balsam", "peru balsam", "copaiba balm",
-    "gurjan balsam", "styrax", "cistus incanus",
-    "smoke", "oud smoke", "coal", "gunpowder", "tar", "birch tar", "cade oil"
-  ])) fam.add("family:amber");
-  if (hasAny(a, [
-    "sweet", "sweet notes", "sugar", "brown sugar", "burnt sugar", "sugar cane",
-    "caramel", "toffee", "praline", "cotton candy", "marshmallow", "marshamallow",
-    "bubble gum", "coca-cola", "tonic water",
-    "vanilla", "ethylvanillin", "coumarin", "tonka", "tonka bean",
-    "chocolate", "dark chocolate", "cocoa", "cacao", "cacao butter", "milk chocolate",
-    "coffee", "espresso", "mocha", "cappuccino",
-    "milk", "condensed milk", "almond milk", "soy milk", "custard",
-    "butter", "buttercream", "ice cream", "kulfi",
-    "cake", "cupcake", "cookie", "biscuit", "cone waffle", "madeleine",
-    "creme brulee", "panacotta", "meringue", "puff pastry", "bread",
-    "chestnut", "hazelnut", "pistachio", "walnut", "sesame",
-    "liquor", "rum", "whiskey", "bourbon whiskey", "brandy", "cognac",
-    "champagne", "beer", "ale", "amaretto", "aperol",
-    "candied", "dragée", "jellybean", "gummy candies", "popcorn",
-    "fruity notes", "fruits", "dried fruits" // often used as gourmand framing
-  ])) fam.add("family:gourmand");
-  if (hasAny(a, [
-    "floral", "flowers", "floral notes", "floral bouquet", "exotic floral notes",
-    "rose", "damask rose", "bulgarian rose", "turkish rose", "taif rose",
-    "grasse rose", "rose de mai", "may rose", "tea rose", "rose water",
-    "jasmine", "jasmine sambac", "egyptian jasmine", "indian jasmine",
-    "orange blossom", "neroli", "tuberose", "ylang ylang", "tiare flower",
-    "gardenia", "magnolia", "lily", "lily of the valley", "hyacinth",
-    "freesia", "peony", "violet", "parma violet", "iris", "orris", "orris root",
-    "osmanthus", "narcissus", "mimosa", "honeysuckle", "frangipani",
-    "lotus", "water lily", "orchid", "black orchid", "white orchid",
-    "chrysanthemum", "carnation", "calla lily", "camelia", "blue lotus",
-    "poppy", "red poppy", "amaryllis", "bellflower", "bluebell",
-    "wisteria", "hibiscus", "rangoon creeper", "mock orange",
-    "almond blossom", "apple blossom", "peach blossom", "pear blossom",
-    "mango blossom", "olive blossom", "coconut blossom", "silk tree blossom"
-  ])) fam.add("family:floral");
-  if (hasAny(a, [
-    "musk", "white musk", "natural musk", "ambrette", "ambrette (musk mallow)",
-    "ambrettolide", "helvetolide", "serenolide", "sylkolide",
-    "powdery notes", "soap", "cotton flower", "skin", "silk",
-    "aldehydes"
-  ])) fam.add("family:musky");
-  if (hasAny(a, [
-    "spices", "spicy notes", "aromatic spices",
-    "pepper", "black pepper", "white pepper", "pink pepper", "sichuan pepper",
-    "timur", "paprika", "chili pepper", "pimento", "pimento seeds", "pimento leaf",
-    "cinnamon", "ceylon cinnamon", "clove", "cloves", "cardamom", "cardamon",
-    "nutmeg", "indonesian nutmeg", "caraway", "cumin", "fenugreek",
-    "fennel", "anise", "star anise", "saffron", "ginger", "indian ginger",
-    "nigerian ginger", "tarragon", "oregano", "thyme"
-  ])) fam.add("family:spicy");
-  if (hasAny(a, [
-    "apple", "pear", "peach", "apricot", "plum", "cherry", "sour cherry",
-    "berry", "berries", "strawberry", "raspberry", "blueberry", "blackberry",
-    "black currant", "blackcurrant", "currant", "pomegranate", "grapes",
-    "mango", "banana", "kiwi", "lychee", "litchi", "nectarine", "papaya",
-    "melon", "watermelon", "fig", "quince", "dates", "cranberry", "guava",
-    "passionfruit", "pitahaya", "prickly pear", "nashi pear", "citrus"
-  ])) fam.add("family:fruity");
-  if (hasAny(a, [
-    "leather", "russian leather", "saffiano leather", "suede",
-    "animal notes", "civet", "castoreum", "blood", "skin", "rubber"
-  ])) fam.add("family:leather");
+function buildFamilyWeights(accordsW, notesW) {
+  // accordsW: Map<token, weight>
+  // notesW: Map<token, weight>
+  const familyWeights = new Map();
 
+  for (const [family, indicators] of Object.entries(FAMILY_INDICATORS)) {
+    let weight = 0;
 
-  return [...fam].sort();
+    // Sum weights from matching accords
+    for (const [accord, accordWeight] of accordsW.entries()) {
+      if (indicators.accords.has(normToken(accord))) {
+        weight += accordWeight;
+      }
+    }
+
+    // Sum weights from matching notes
+    for (const [note, noteWeight] of notesW.entries()) {
+      if (indicators.notes.has(normToken(note))) {
+        weight += noteWeight;
+      }
+    }
+
+    // Only include families with non-zero weight
+    if (weight > 0) {
+      familyWeights.set(family, weight);
+    }
+  }
+
+  // Normalize family weights
+  return normalizeWeights(familyWeights);
 }
 
 function buildAccordWeights(accords, allowedAccordsSet) {
@@ -256,14 +313,12 @@ async function main() {
   for (const p of perfumes.rows) {
     const accordsW = buildAccordWeights(p.accords, allowedAccords);
     const notesW = buildNoteWeights(p.notes_json, p.notes_all, allowedNotes);
-
-    const families = familiesFrom(p.accords || [], p.notes_all || [])
-      .map(t => ({ t, w: 1 }));
+    const familiesW = buildFamilyWeights(accordsW, notesW);
 
     const dna = {
       accords: toArray(accordsW),
       notes: toArray(notesW),
-      families,
+      families: toArray(familiesW),
       meta: {
         year: p.year ?? null,
         brand: p.brand ?? null,

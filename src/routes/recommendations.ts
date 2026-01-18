@@ -1,14 +1,17 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { getSimilarPerfumesRecommendations } from "../services/recommendationService";
-import { ValidationError } from "../lib/errorHandler";
+import {
+  getSimilarPerfumesRecommendations,
+  getUserTasteFingerprint,
+} from "../services/recommendationService";
+import { ValidationError, NotFoundError } from "../lib/errorHandler";
 import { logger } from "../lib/logger";
 
 const router = Router();
 
 /**
  * @swagger
- * /api/v1/recommendations/similar:
+ * /api/v1/perfumes/recommend:
  *   post:
  *     summary: Get similar perfume recommendations
  *     description: |
@@ -24,7 +27,7 @@ const router = Router();
  *       - Explainable recommendations with "why" payload
  *       - Gender filtering support
  *       - Handles missing DNA/performance data gracefully
- *     tags: [Recommendations]
+ *     tags: [Perfumes]
  *     requestBody:
  *       required: true
  *       content:
@@ -76,6 +79,47 @@ const router = Router();
  *                         longevity_votes: 150
  *                         sillage: 7.9
  *                         sillage_votes: 142
+ *                     dna_card:
+ *                       families:
+ *                         - name: "Amber"
+ *                           weight: 1.0
+ *                         - name: "Woody"
+ *                           weight: 1.0
+ *                       accords:
+ *                         - name: "amber"
+ *                           weight: 0.18
+ *                           percentage: 18.0
+ *                         - name: "warm spicy"
+ *                           weight: 0.14
+ *                           percentage: 14.0
+ *                       notes:
+ *                         - name: "vanilla"
+ *                           weight: 0.20
+ *                           percentage: 20.0
+ *                         - name: "lavender"
+ *                           weight: 0.15
+ *                           percentage: 15.0
+ *                 fingerprint:
+ *                   summary: "You like amber and woody scents with vanilla and lavender, warm and resinous."
+ *                   families:
+ *                     - name: "Amber"
+ *                       percentage: 32.0
+ *                     - name: "Woody"
+ *                       percentage: 21.0
+ *                   accords:
+ *                     - name: "amber"
+ *                       percentage: 22.0
+ *                     - name: "warm spicy"
+ *                       percentage: 16.0
+ *                   notes:
+ *                     - name: "vanilla"
+ *                       percentage: 25.0
+ *                     - name: "lavender"
+ *                       percentage: 15.0
+ *                   missing:
+ *                     - category: "family"
+ *                       name: "fresh"
+ *                       suggestion: "You have almost no fresh citrus. Try one clean summer signature."
  *               meta:
  *                 requestId: "ebf4baa4-728d-422c-9cf4-7c763cef9349"
  *       400:
@@ -98,7 +142,7 @@ const similarPerfumesSchema = z.object({
   gender: z.enum(["male", "female", "unisex"]).optional(),
 });
 
-router.post("/similar", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/recommend", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validationResult = similarPerfumesSchema.safeParse(req.body);
 
@@ -129,6 +173,150 @@ router.post("/similar", async (req: Request, res: Response, next: NextFunction) 
         stack: error instanceof Error ? error.stack : undefined,
       },
       "Error in similar perfumes recommendation"
+    );
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/perfumes/fingerprint:
+ *   post:
+ *     summary: Get user taste fingerprint
+ *     description: |
+ *       Aggregates DNA from liked perfumes to create a taste profile including:
+ *       - Dynamic taste summary
+ *       - Top families, accords, and notes with percentages
+ *       - Missing suggestions (categories with < 5% representation)
+ *     tags: [Perfumes]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [liked_perfume_ids]
+ *             properties:
+ *               liked_perfume_ids:
+ *                 type: array
+ *                 items:
+ *                   type: number
+ *                 minItems: 1
+ *                 maxItems: 10
+ *                 description: Array of 1-10 perfume IDs that the user likes
+ *                 example: [42260, 75805, 52802]
+ *           example:
+ *             liked_perfume_ids: [42260, 75805, 52802]
+ *     responses:
+ *       200:
+ *         description: Fingerprint retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/TasteFingerprint'
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     requestId:
+ *                       type: string
+ *             example:
+ *               data:
+ *                 summary: "You like gourmand and amber scents with vanilla and tonka, warm and cozy."
+ *                 families:
+ *                   - name: "Amber"
+ *                     percentage: 32.0
+ *                   - name: "Gourmand"
+ *                     percentage: 21.0
+ *                 accords:
+ *                   - name: "vanilla"
+ *                     percentage: 22.0
+ *                   - name: "amber"
+ *                     percentage: 16.0
+ *                 notes:
+ *                   - name: "vanilla"
+ *                     percentage: 25.0
+ *                   - name: "tonka bean"
+ *                     percentage: 15.0
+ *                 missing:
+ *                   - category: "family"
+ *                     name: "fresh"
+ *                     suggestion: "You have almost no fresh citrus. Try one clean summer signature."
+ *               meta:
+ *                 requestId: "ebf4baa4-728d-422c-9cf4-7c763cef9349"
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+const fingerprintSchema = z.object({
+  liked_perfume_ids: z
+    .array(z.number().int().positive())
+    .min(1)
+    .max(10),
+});
+
+router.post("/fingerprint", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validationResult = fingerprintSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      throw new ValidationError(
+        `Invalid request: ${validationResult.error.issues.map((issue) => issue.message).join(", ")}`,
+        req.requestId
+      );
+    }
+
+    const { liked_perfume_ids } = validationResult.data;
+
+    // Validate perfume IDs exist
+    const { pool } = await import("../database/pool");
+    const uniqueIds = [...new Set(liked_perfume_ids)];
+    const perfumeIds = uniqueIds.map((id) => Number(id));
+
+    if (perfumeIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+      throw new ValidationError("All perfume IDs must be positive integers", req.requestId);
+    }
+
+    const checkQuery = `SELECT id FROM perfumes WHERE id = ANY($1::bigint[])`;
+    const checkResult = await pool.query(checkQuery, [perfumeIds]);
+
+    if (checkResult.rows.length !== perfumeIds.length) {
+      const foundIds = new Set(checkResult.rows.map((r: { id: number }) => r.id));
+      const missingIds = perfumeIds.filter((id) => !foundIds.has(id));
+      throw new NotFoundError(
+        `Perfume IDs not found: ${missingIds.join(", ")}`,
+        req.requestId
+      );
+    }
+
+    const fingerprint = await getUserTasteFingerprint(perfumeIds);
+
+    if (!fingerprint) {
+      throw new NotFoundError(
+        "Could not generate fingerprint. Ensure all perfumes have DNA data.",
+        req.requestId
+      );
+    }
+
+    res.json({
+      data: fingerprint,
+      meta: {
+        requestId: req.requestId,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      {
+        requestId: req.requestId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      "Error generating user taste fingerprint"
     );
     next(error);
   }

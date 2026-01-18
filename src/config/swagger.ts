@@ -31,8 +31,8 @@ const options: swaggerJsdoc.Options = {
         description: "Health check and system status endpoints",
       },
       {
-        name: "Recommendations",
-        description: "Perfume recommendation endpoints",
+        name: "Perfumes",
+        description: "Perfume-related endpoints (recommendations, DNA, fingerprint)",
       },
     ],
     components: {

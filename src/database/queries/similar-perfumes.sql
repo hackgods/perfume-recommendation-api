@@ -76,6 +76,7 @@ user_accords AS (
 ),
 
 -- Candidate retrieval by embedding (high-recall pool)
+-- Uses ivfflat index for efficient vector similarity search
 candidates AS (
   SELECT
 	p.id,
@@ -92,7 +93,7 @@ candidates AS (
 	e.vector,
 	(e.vector <=> tv.v) AS cosine_distance
   FROM taste_vec tv
-  JOIN perfume_embeddings e ON true
+  CROSS JOIN perfume_embeddings e
   JOIN perfumes p ON p.id = e.perfume_id
   WHERE p.id <> ALL ($1::bigint[])
     AND ($3::text IS NULL OR p.gender = $3::text)
@@ -343,7 +344,7 @@ ranked AS (
 	  ELSE 1.00
 	END AS novelty_penalty,
 
-	-- Final score with novelty penalty applied
+	-- Final score with novelty penalty applied (calculate once, reuse in window function)
 	(
 	  COALESCE($4::float, 0.45) * s.sim01
 	  + COALESCE($5::float, 0.20) * s.dna01
@@ -359,8 +360,9 @@ ranked AS (
 	  ELSE 1.00
 	END AS final_score,
 
-	ROW_NUMBER() OVER (PARTITION BY s.brand ORDER BY
-	  (
+	ROW_NUMBER() OVER (
+	  PARTITION BY s.brand 
+	  ORDER BY (
 		COALESCE($4::float, 0.45) * s.sim01
 		+ COALESCE($5::float, 0.20) * s.dna01
 		+ COALESCE($6::float, 0.25) * s.ward01

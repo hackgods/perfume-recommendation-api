@@ -11,7 +11,8 @@ export const swaggerSchemas = {
           },
           message: {
             type: "string",
-            example: "Invalid request: liked_perfume_ids must contain at least 1 element",
+            example:
+              "Invalid request: liked_perfume_ids must contain at least 1 element",
           },
           requestId: {
             type: "string",
@@ -166,7 +167,13 @@ export const swaggerSchemas = {
         $ref: "#/components/schemas/RecommendationPerformance",
       },
     },
-    required: ["because_similar_to", "shared_notes", "shared_accords", "wardrobe", "performance"],
+    required: [
+      "because_similar_to",
+      "shared_notes",
+      "shared_accords",
+      "wardrobe",
+      "performance",
+    ],
   },
   RecommendationResult: {
     type: "object",
@@ -234,6 +241,10 @@ export const swaggerSchemas = {
       why: {
         $ref: "#/components/schemas/RecommendationWhy",
       },
+      dna_card: {
+        $ref: "#/components/schemas/DnaCard",
+        description: "DNA card with top families, accords, and notes",
+      },
     },
     required: [
       "id",
@@ -264,6 +275,10 @@ export const swaggerSchemas = {
         items: {
           $ref: "#/components/schemas/RecommendationResult",
         },
+      },
+      fingerprint: {
+        $ref: "#/components/schemas/TasteFingerprint",
+        description: "User taste fingerprint (optional)",
       },
     },
     required: ["liked_count", "results"],
@@ -306,13 +321,15 @@ export const swaggerSchemas = {
       prefer_longlasting: {
         type: "boolean",
         default: false,
-        description: "Prioritize perfumes with high longevity (currently not implemented)",
+        description:
+          "Prioritize perfumes with high longevity (currently not implemented)",
         example: false,
       },
       prefer_soft_projection: {
         type: "boolean",
         default: false,
-        description: "Prioritize perfumes with lower sillage/soft projection (currently not implemented)",
+        description:
+          "Prioritize perfumes with lower sillage/soft projection (currently not implemented)",
         example: false,
       },
       gender: {
@@ -340,5 +357,242 @@ export const swaggerSchemas = {
       },
     },
     required: ["data", "meta"],
+  },
+  DnaCard: {
+    type: "object",
+    properties: {
+      families: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              example: "Amber",
+            },
+            weight: {
+              type: "number",
+              example: 1.0,
+            },
+          },
+          required: ["name", "weight"],
+        },
+        description: "Top 3 DNA families",
+        example: [
+          { name: "Amber", weight: 1.0 },
+          { name: "Gourmand", weight: 1.0 },
+          { name: "Woody", weight: 1.0 },
+        ],
+      },
+      accords: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              example: "vanilla",
+            },
+            weight: {
+              type: "number",
+              example: 0.18,
+            },
+            percentage: {
+              type: "number",
+              example: 18.0,
+            },
+          },
+          required: ["name", "weight", "percentage"],
+        },
+        description: "Top 5 accords with percentages",
+        example: [
+          { name: "vanilla", weight: 0.18, percentage: 18.0 },
+          { name: "amber", weight: 0.14, percentage: 14.0 },
+          { name: "woody", weight: 0.1, percentage: 10.0 },
+        ],
+      },
+      notes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              example: "vanilla",
+            },
+            weight: {
+              type: "number",
+              example: 0.2,
+            },
+            percentage: {
+              type: "number",
+              example: 20.0,
+            },
+          },
+          required: ["name", "weight", "percentage"],
+        },
+        description: "Top 5 notes with percentages",
+        example: [
+          { name: "vanilla", weight: 0.2, percentage: 20.0 },
+          { name: "benzoin", weight: 0.12, percentage: 12.0 },
+          { name: "tonka", weight: 0.09, percentage: 9.0 },
+        ],
+      },
+    },
+    required: ["families", "accords", "notes"],
+  },
+  MissingSuggestionPerfume: {
+    type: "object",
+    properties: {
+      id: {
+        type: "number",
+        example: 56324,
+      },
+      name: {
+        type: "string",
+        example: "Sauvage Parfum",
+      },
+      brand: {
+        type: "string",
+        example: "Dior",
+      },
+      image: {
+        type: "string",
+        format: "uri",
+        example: "https://fimgs.net/mdimg/perfume-thumbs/375x500.56324.2x.avif",
+      },
+    },
+    required: ["id", "name", "brand", "image"],
+  },
+  MissingSuggestion: {
+    type: "object",
+    properties: {
+      category: {
+        type: "string",
+        enum: ["family", "accord", "note"],
+        example: "family",
+      },
+      name: {
+        type: "string",
+        example: "fresh",
+      },
+      suggestion: {
+        type: "string",
+        example:
+          "You have almost no fresh citrus. Try one clean summer signature.",
+      },
+      perfumes: {
+        type: "array",
+        items: {
+          $ref: "#/components/schemas/MissingSuggestionPerfume",
+        },
+        description: "3 recommended perfumes for this missing category",
+        example: [
+          {
+            id: 56324,
+            name: "Sauvage Parfum",
+            brand: "Dior",
+            image: "https://fimgs.net/mdimg/perfume-thumbs/375x500.56324.2x.avif",
+          },
+        ],
+      },
+    },
+    required: ["category", "name", "suggestion", "perfumes"],
+  },
+  TasteFingerprint: {
+    type: "object",
+    properties: {
+      summary: {
+        type: "string",
+        description: "Dynamic template-based taste summary",
+        example:
+          "You like gourmand and amber scents with vanilla and tonka, warm and cozy.",
+      },
+      families: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              example: "Amber",
+            },
+            percentage: {
+              type: "number",
+              example: 32.0,
+            },
+          },
+          required: ["name", "percentage"],
+        },
+        description: "Top families with percentages",
+        example: [
+          { name: "Amber", percentage: 32.0 },
+          { name: "Gourmand", percentage: 21.0 },
+          { name: "Woody", percentage: 18.0 },
+        ],
+      },
+      accords: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              example: "vanilla",
+            },
+            percentage: {
+              type: "number",
+              example: 22.0,
+            },
+          },
+          required: ["name", "percentage"],
+        },
+        description: "Top accords with percentages",
+        example: [
+          { name: "vanilla", percentage: 22.0 },
+          { name: "amber", percentage: 16.0 },
+          { name: "sweet", percentage: 11.0 },
+        ],
+      },
+      notes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              example: "vanilla",
+            },
+            percentage: {
+              type: "number",
+              example: 25.0,
+            },
+          },
+          required: ["name", "percentage"],
+        },
+        description: "Top notes with percentages",
+        example: [
+          { name: "vanilla", percentage: 25.0 },
+          { name: "tonka bean", percentage: 15.0 },
+          { name: "amberwood", percentage: 12.0 },
+        ],
+      },
+      missing: {
+        type: "array",
+        items: {
+          $ref: "#/components/schemas/MissingSuggestion",
+        },
+        description: "2-3 suggestions for missing categories",
+        example: [
+          {
+            category: "family",
+            name: "fresh",
+            suggestion:
+              "You have almost no fresh citrus. Try one clean summer signature.",
+          },
+        ],
+      },
+    },
+    required: ["summary", "families", "accords", "notes", "missing"],
   },
 };

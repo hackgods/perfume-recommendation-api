@@ -43,6 +43,30 @@ export interface SimilarPerfumesResult {
   };
 }
 
+export interface DnaCardResult {
+  families: Array<{ name: string; weight: number }>;
+  accords: Array<{ name: string; weight: number; percentage: number }>;
+  notes: Array<{ name: string; weight: number; percentage: number }>;
+}
+
+export interface TasteFingerprintResult {
+  summary: string;
+  families: Array<{ name: string; percentage: number }>;
+  accords: Array<{ name: string; percentage: number }>;
+  notes: Array<{ name: string; percentage: number }>;
+  missing: Array<{
+    category: "family" | "accord" | "note";
+    name: string;
+    suggestion: string;
+    perfumes: Array<{
+      id: number;
+      name: string;
+      brand: string;
+      image: string;
+    }>;
+  }>;
+}
+
 export async function getSimilarPerfumes(
   likedPerfumeIds: number[],
   limit: number,
@@ -155,4 +179,30 @@ export async function getSimilarPerfumes(
   } finally {
     client.release();
   }
+}
+
+export async function getPerfumeDna(
+  perfumeId: number
+): Promise<DnaCardResult | null> {
+  const sql = loadSqlFile("get-perfume-dna.sql");
+  const result = await pool.query<DnaCardResult>(sql, [perfumeId]);
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0];
+}
+
+export async function getUserFingerprint(
+  likedPerfumeIds: number[]
+): Promise<TasteFingerprintResult | null> {
+  const sql = loadSqlFile("get-user-fingerprint.sql");
+  const result = await pool.query<TasteFingerprintResult>(sql, [likedPerfumeIds]);
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0];
 }
