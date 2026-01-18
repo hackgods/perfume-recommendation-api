@@ -6,6 +6,11 @@
 --   $1 :: bigint[]   -- liked_perfume_ids (size 1..10)
 --   $2 :: int        -- limit (e.g. 10)
 --   $3 :: text       -- gender filter (optional: 'male', 'female', 'unisex', or NULL for all)
+--   $4 :: float      -- weight_similarity (default: 0.45)
+--   $5 :: float      -- weight_dna (default: 0.20)
+--   $6 :: float      -- weight_wardrobe (default: 0.25)
+--   $7 :: float      -- weight_quality (default: 0.07)
+--   $8 :: float      -- weight_performance (default: 0.03)
 --
 -- Tables:
 --   perfumes(id, name, brand, year, rating, total_votes, ...)
@@ -292,20 +297,20 @@ ranked AS (
 
 	-- Final weighted score (0..1-ish)
 	(
-	  0.45 * s.sim01
-	  + 0.20 * s.dna01
-	  + 0.25 * s.ward01
-	  + 0.07 * s.qual01
-	  + 0.03 * s.perf01
+	  COALESCE($4::float, 0.45) * s.sim01
+	  + COALESCE($5::float, 0.20) * s.dna01
+	  + COALESCE($6::float, 0.25) * s.ward01
+	  + COALESCE($7::float, 0.07) * s.qual01
+	  + COALESCE($8::float, 0.03) * s.perf01
 	) AS final_score,
 
 	ROW_NUMBER() OVER (PARTITION BY s.brand ORDER BY
 	  (
-		0.45 * s.sim01
-		+ 0.20 * s.dna01
-		+ 0.25 * s.ward01
-		+ 0.07 * s.qual01
-		+ 0.03 * s.perf01
+		COALESCE($4::float, 0.45) * s.sim01
+		+ COALESCE($5::float, 0.20) * s.dna01
+		+ COALESCE($6::float, 0.25) * s.ward01
+		+ COALESCE($7::float, 0.07) * s.qual01
+		+ COALESCE($8::float, 0.03) * s.perf01
 	  ) DESC
 	) AS brand_rank
   FROM scored s
