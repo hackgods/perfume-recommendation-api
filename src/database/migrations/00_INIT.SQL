@@ -93,6 +93,10 @@ CREATE INDEX IF NOT EXISTS perfume_wardrobe_edges_related_perfume_id_idx
 -- Indexes for fast filtering/search
 CREATE INDEX IF NOT EXISTS perfumes_brand_idx ON perfumes (brand);
 CREATE INDEX IF NOT EXISTS perfumes_year_idx ON perfumes (year);
+CREATE INDEX IF NOT EXISTS perfumes_name_idx ON perfumes USING gin(to_tsvector('english', name));
+CREATE INDEX IF NOT EXISTS perfumes_name_lower_idx ON perfumes (LOWER(name));
+CREATE INDEX IF NOT EXISTS perfumes_gender_idx ON perfumes (gender);
+CREATE INDEX IF NOT EXISTS perfumes_rating_idx ON perfumes (rating) WHERE rating IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS perfumes_notes_all_gin
   ON perfumes USING GIN (notes_all);

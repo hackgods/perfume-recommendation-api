@@ -256,3 +256,62 @@ export async function findClones(
     client.release();
   }
 }
+
+export interface SearchPerfumesParams {
+  query?: string;
+  brands?: string[];
+  gender?: ("male" | "female" | "unisex")[];
+  min_year?: number;
+  max_year?: number;
+  min_rating?: number;
+  limit?: number;
+  offset?: number;
+  sort_by?: "relevance" | "rating" | "year" | "name";
+}
+
+export interface SearchPerfumesResult {
+  id: number;
+  name: string;
+  brand: string;
+  image: string;
+  total_count: number;
+  relevance_score: number;
+}
+
+export async function searchPerfumes(
+  params: SearchPerfumesParams
+): Promise<SearchPerfumesResult[]> {
+  const sql = loadSqlFile("search-perfumes.sql");
+  const {
+    query = null,
+    brands = null,
+    gender = null,
+    min_year = null,
+    max_year = null,
+    min_rating = null,
+    limit = 15,
+    offset = 0,
+    sort_by = "relevance",
+  } = params;
+
+  // Validate and clamp values
+  const validLimit = Math.min(Math.max(1, limit), 50);
+  const validOffset = Math.max(0, offset);
+  const validSortBy = ["relevance", "rating", "year", "name"].includes(sort_by)
+    ? sort_by
+    : "relevance";
+
+  const result = await pool.query<SearchPerfumesResult>(sql, [
+    query || null,
+    brands && brands.length > 0 ? brands : null,
+    gender && gender.length > 0 ? gender : null,
+    min_year || null,
+    max_year || null,
+    min_rating || null,
+    validLimit,
+    validOffset,
+    validSortBy,
+  ]);
+
+  return result.rows;
+}

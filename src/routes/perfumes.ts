@@ -1,5 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { z } from "zod";
 import { getPerfumeDnaCard, findPerfumeClones } from "../services/recommendationService";
+import { searchPerfumes } from "../database/queries";
 import { ValidationError, NotFoundError } from "../lib/errorHandler";
 import { logger } from "../lib/logger";
 
@@ -303,6 +305,273 @@ router.post("/clonefinder", async (req: Request, res: Response, next: NextFuncti
         stack: error instanceof Error ? error.stack : undefined,
       },
       "Error finding perfume clones"
+    );
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/perfumes/search:
+ *   get:
+ *     summary: Search perfumes
+ *     description: |
+ *       Search with full-text matching, filtering, and pagination.
+ *       Searches across perfume name, brand, and description.
+ *       Supports filtering by brand, gender, year range, and minimum rating.
+ *       Returns 15 results per page by default.
+ *     tags: [Perfumes]
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         description: Search query (searches name, brand, description)
+ *         example: "sauvage"
+ *       - in: query
+ *         name: brands
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         style: form
+ *         explode: true
+ *         description: Filter by brands (comma-separated or multiple)
+ *         example: ["Dior", "Creed"]
+ *       - in: query
+ *         name: gender
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *             enum: [male, female, unisex]
+ *         style: form
+ *         explode: true
+ *         description: Filter by gender
+ *         example: ["male"]
+ *       - in: query
+ *         name: min_year
+ *         schema:
+ *           type: integer
+ *         description: Minimum release year
+ *         example: 2020
+ *       - in: query
+ *         name: max_year
+ *         schema:
+ *           type: integer
+ *         description: Maximum release year
+ *         example: 2024
+ *       - in: query
+ *         name: min_rating
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *           maximum: 5
+ *         description: Minimum rating (0-5)
+ *         example: 4.0
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 15
+ *         description: Number of results per page
+ *         example: 15
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Pagination offset
+ *         example: 0
+ *       - in: query
+ *         name: sort_by
+ *         schema:
+ *           type: string
+ *           enum: [relevance, rating, year, name]
+ *           default: relevance
+ *         description: Sort order
+ *         example: relevance
+ *     responses:
+ *       200:
+ *         description: Search results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     results:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           name:
+ *                             type: string
+ *                           brand:
+ *                             type: string
+ *                           image:
+ *                             type: string
+ *                             format: uri
+ *                           relevance_score:
+ *                             type: number
+ *                             description: Relevance score (higher = more relevant)
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                           description: Total number of results
+ *                         limit:
+ *                           type: integer
+ *                         offset:
+ *                           type: integer
+ *                         has_more:
+ *                           type: boolean
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     requestId:
+ *                       type: string
+ *             example:
+ *               data:
+ *                 results:
+ *                   - id: 56324
+ *                     name: "Sauvage Parfum"
+ *                     brand: "Dior"
+ *                     image: "https://fimgs.net/mdimg/perfume-thumbs/375x500.56324.2x.avif"
+ *                     relevance_score: 100.0
+ *                   - id: 75805
+ *                     name: "Sauvage"
+ *                     brand: "Dior"
+ *                     image: "https://fimgs.net/mdimg/perfume-thumbs/375x500.75805.2x.avif"
+ *                     relevance_score: 50.0
+ *                 pagination:
+ *                   total: 42
+ *                   limit: 15
+ *                   offset: 0
+ *                   has_more: true
+ *               meta:
+ *                 requestId: "abc123"
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+const searchSchema = z.object({
+  q: z.string().optional(),
+  brands: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      if (typeof val === "string") {
+        return val.split(",").map((b) => b.trim()).filter(Boolean);
+      }
+      return val;
+    }),
+  gender: z
+    .union([
+      z.enum(["male", "female", "unisex"]),
+      z.array(z.enum(["male", "female", "unisex"])),
+    ])
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      return Array.isArray(val) ? val : [val];
+    }),
+  min_year: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+  max_year: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+  min_rating: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseFloat(val) : undefined)),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 15)),
+  offset: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 0)),
+  sort_by: z
+    .enum(["relevance", "rating", "year", "name"])
+    .optional()
+    .default("relevance"),
+});
+
+router.get("/search", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validationResult = searchSchema.safeParse(req.query);
+
+    if (!validationResult.success) {
+      throw new ValidationError(
+        `Invalid search parameters: ${validationResult.error.issues.map((issue) => issue.message).join(", ")}`,
+        req.requestId
+      );
+    }
+
+    const params = validationResult.data;
+    const results = await searchPerfumes({
+      query: params.q,
+      brands: params.brands,
+      gender: params.gender,
+      min_year: params.min_year,
+      max_year: params.max_year,
+      min_rating: params.min_rating,
+      limit: params.limit,
+      offset: params.offset,
+      sort_by: params.sort_by,
+    });
+
+    // Extract pagination info from first result (all have same total_count)
+    const total = results.length > 0 ? results[0].total_count : 0;
+    const limit = params.limit || 15;
+    const offset = params.offset || 0;
+    const hasMore = offset + results.length < total;
+
+    // Remove total_count and relevance_score from response (keep only id, name, image)
+    const formattedResults = results.map((r) => ({
+      id: r.id,
+      name: r.name,
+      brand: r.brand,
+      image: r.image,
+    }));
+
+    res.json({
+      data: {
+        results: formattedResults,
+        pagination: {
+          total,
+          limit,
+          offset,
+          has_more: hasMore,
+        },
+      },
+      meta: {
+        requestId: req.requestId,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      {
+        requestId: req.requestId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      "Error searching perfumes"
     );
     next(error);
   }
