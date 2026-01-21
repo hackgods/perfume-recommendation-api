@@ -99,16 +99,33 @@ ranked AS (
 sorted AS (
   SELECT
     r.*,
-    CASE
-      WHEN $9::text = 'rating' THEN
-        ROW_NUMBER() OVER (ORDER BY COALESCE(r.rating, 0) DESC NULLS LAST, LOWER(r.name) ASC)
-      WHEN $9::text = 'year' THEN
-        ROW_NUMBER() OVER (ORDER BY COALESCE(r.year, 0) DESC NULLS LAST, COALESCE(r.rating, 0) DESC NULLS LAST, LOWER(r.name) ASC)
-      WHEN $9::text = 'name' THEN
-        ROW_NUMBER() OVER (ORDER BY LOWER(r.name) ASC, COALESCE(r.rating, 0) DESC NULLS LAST)
-      ELSE
-        ROW_NUMBER() OVER (ORDER BY r.total_relevance DESC, COALESCE(r.rating, 0) DESC NULLS LAST, LOWER(r.name) ASC)
-    END AS row_num
+    ROW_NUMBER() OVER (
+      ORDER BY
+        -- Primary sort key (only one will be non-null based on sort_by)
+        CASE
+          WHEN $9::text = 'rating' THEN COALESCE(r.rating, 0)
+          ELSE NULL
+        END DESC NULLS LAST,
+        CASE
+          WHEN $9::text = 'year' THEN COALESCE(r.year, 0)
+          ELSE NULL
+        END DESC NULLS LAST,
+        CASE
+          WHEN $9::text = 'name' THEN LOWER(r.name)
+          ELSE NULL
+        END ASC NULLS LAST,
+        CASE
+          WHEN $9::text NOT IN ('rating', 'year', 'name') THEN r.total_relevance
+          ELSE NULL
+        END DESC NULLS LAST,
+        -- Secondary sort: rating (for non-rating sorts)
+        CASE
+          WHEN $9::text != 'rating' THEN COALESCE(r.rating, 0)
+          ELSE NULL
+        END DESC NULLS LAST,
+        -- Final tie-breaker: name (always)
+        LOWER(r.name) ASC
+    ) AS row_num
   FROM ranked r
 ),
 -- Get total count for pagination
