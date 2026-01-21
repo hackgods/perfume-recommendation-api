@@ -53,7 +53,7 @@ searched AS (
       WHEN LOWER(f.name) = LOWER(trim($1::text)) THEN 100.0
       -- Name starts with query
       WHEN LOWER(f.name) LIKE LOWER(trim($1::text)) || '%' THEN 50.0
-      -- Name contains query
+      -- Name contains query (as phrase)
       WHEN LOWER(f.name) LIKE '%' || LOWER(trim($1::text)) || '%' THEN 30.0
       -- Brand exact match
       WHEN LOWER(f.brand) = LOWER(trim($1::text)) THEN 25.0
@@ -64,25 +64,49 @@ searched AS (
       -- No match
       ELSE 0.0
     END AS relevance_score,
-    -- Word-based matching for multi-word queries
-    CASE
-      WHEN $1::text IS NULL OR length(trim($1::text)) = 0 THEN 0.0
-      ELSE (
-        -- Count how many words from query appear in name
-        (
-          SELECT COUNT(*)
-          FROM unnest(string_to_array(LOWER(trim($1::text)), ' ')) AS query_word
-          WHERE LOWER(f.name) LIKE '%' || query_word || '%'
-        ) * 10.0
-        +
-        -- Count how many words from query appear in brand
-        (
-          SELECT COUNT(*)
-          FROM unnest(string_to_array(LOWER(trim($1::text)), ' ')) AS query_word
-          WHERE LOWER(f.brand) LIKE '%' || query_word || '%'
-        ) * 5.0
+    -- Enhanced word-based matching for multi-word queries
+    COALESCE((
+      WITH word_stats AS (
+        SELECT
+          COUNT(*) FILTER (WHERE LOWER(f.name) LIKE '%' || w.word || '%') AS name_matches,
+          COUNT(*) FILTER (WHERE LOWER(f.brand) LIKE '%' || w.word || '%') AS brand_matches,
+          COUNT(*) AS total_words,
+          (array_agg(w.word ORDER BY w.ordinality))[1] AS first_word,
+          (array_agg(w.word ORDER BY w.ordinality))[2] AS second_word
+        FROM unnest(string_to_array(LOWER(trim($1::text)), ' ')) WITH ORDINALITY AS w(word, ordinality)
       )
-    END AS word_match_bonus
+      SELECT
+        -- Bonus for matching ALL words (perfect match across name + brand)
+        CASE
+          WHEN ws.name_matches + ws.brand_matches = ws.total_words THEN 60.0
+          WHEN ws.name_matches = ws.total_words THEN 50.0
+          ELSE 0.0
+        END
+        +
+        -- Points for each word matched in name (higher weight)
+        ws.name_matches * 20.0
+        +
+        -- Points for each word matched in brand
+        ws.brand_matches * 10.0
+        +
+        -- Bonus if name contains the first word (usually most important, e.g., "elixir")
+        CASE
+          WHEN ws.first_word IS NOT NULL AND LOWER(f.name) LIKE '%' || ws.first_word || '%' THEN 15.0
+          ELSE 0.0
+        END
+        +
+        -- Extra bonus if name contains first word AND brand contains second word (e.g., "elixir" in name, "dior" in brand)
+        CASE
+          WHEN ws.total_words >= 2 
+            AND ws.first_word IS NOT NULL 
+            AND LOWER(f.name) LIKE '%' || ws.first_word || '%'
+            AND ws.second_word IS NOT NULL
+            AND LOWER(f.brand) LIKE '%' || ws.second_word || '%'
+          THEN 25.0
+          ELSE 0.0
+        END
+      FROM word_stats ws
+    ), 0.0) AS word_match_bonus
   FROM filtered f
 ),
 -- Combine relevance scores
