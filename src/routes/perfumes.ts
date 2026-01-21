@@ -92,14 +92,22 @@ router.get("/:id/dna", async (req: Request, res: Response, next: NextFunction) =
       },
     });
   } catch (error) {
-    logger.error(
-      {
-        requestId: req.requestId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      },
-      "Error fetching perfume DNA card"
-    );
+    const errorDetails: Record<string, unknown> = {
+      requestId: req.requestId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      stack: error instanceof Error ? error.stack : undefined,
+      perfumeId: req.params.id,
+    };
+
+    if (error instanceof Error && "code" in error) {
+      errorDetails.dbCode = (error as { code?: string }).code;
+    }
+    if (error instanceof Error && "detail" in error) {
+      errorDetails.dbDetail = (error as { detail?: string }).detail;
+    }
+
+    logger.error(errorDetails, "Error fetching perfume DNA card");
     next(error);
   }
 });
@@ -298,14 +306,22 @@ router.post("/clonefinder", async (req: Request, res: Response, next: NextFuncti
       },
     });
   } catch (error) {
-    logger.error(
-      {
-        requestId: req.requestId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      },
-      "Error finding perfume clones"
-    );
+    const errorDetails: Record<string, unknown> = {
+      requestId: req.requestId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      stack: error instanceof Error ? error.stack : undefined,
+      body: req.body,
+    };
+
+    if (error instanceof Error && "code" in error) {
+      errorDetails.dbCode = (error as { code?: string }).code;
+    }
+    if (error instanceof Error && "detail" in error) {
+      errorDetails.dbDetail = (error as { detail?: string }).detail;
+    }
+
+    logger.error(errorDetails, "Error finding perfume clones");
     next(error);
   }
 });
@@ -565,14 +581,27 @@ router.get("/search", async (req: Request, res: Response, next: NextFunction) =>
       },
     });
   } catch (error) {
-    logger.error(
-      {
-        requestId: req.requestId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      },
-      "Error searching perfumes"
-    );
+    const errorDetails: Record<string, unknown> = {
+      requestId: req.requestId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      stack: error instanceof Error ? error.stack : undefined,
+      query: req.query,
+      url: req.url,
+    };
+
+    // Add database-specific error details
+    if (error instanceof Error && "code" in error) {
+      errorDetails.dbCode = (error as { code?: string }).code;
+    }
+    if (error instanceof Error && "detail" in error) {
+      errorDetails.dbDetail = (error as { detail?: string }).detail;
+    }
+    if (error instanceof Error && "hint" in error) {
+      errorDetails.dbHint = (error as { hint?: string }).hint;
+    }
+
+    logger.error(errorDetails, "Error searching perfumes");
     next(error);
   }
 });

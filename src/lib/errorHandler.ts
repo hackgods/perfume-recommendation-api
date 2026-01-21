@@ -71,14 +71,29 @@ export function errorHandler(
     return;
   }
 
-  logger.error(
-    {
-      requestId,
-      error: err.message,
-      stack: err.stack,
-    },
-    "Unexpected error"
-  );
+  // Enhanced error logging with more details
+  const errorDetails: Record<string, unknown> = {
+    requestId,
+    error: err.message,
+    errorName: err.name,
+    stack: err.stack,
+  };
+
+  // Add database error details if available
+  if (err instanceof Error && "code" in err) {
+    errorDetails.dbCode = (err as { code?: string }).code;
+  }
+  if (err instanceof Error && "detail" in err) {
+    errorDetails.dbDetail = (err as { detail?: string }).detail;
+  }
+  if (err instanceof Error && "hint" in err) {
+    errorDetails.dbHint = (err as { hint?: string }).hint;
+  }
+  if (err instanceof Error && "position" in err) {
+    errorDetails.dbPosition = (err as { position?: string }).position;
+  }
+
+  logger.error(errorDetails, "Unexpected error");
 
   res.status(500).json({
     error: {
