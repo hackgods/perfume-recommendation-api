@@ -95,19 +95,20 @@ ranked AS (
     -- Only include results with some relevance if search query provided
     ($1::text IS NULL OR length(trim($1::text)) = 0 OR s.relevance_score > 0 OR s.word_match_bonus > 0)
 ),
--- Apply sorting
+-- Apply sorting based on sort_by parameter
 sorted AS (
   SELECT
     r.*,
-    ROW_NUMBER() OVER (
-      ORDER BY
-        CASE
-          WHEN $9::text = 'rating' THEN COALESCE(r.rating, 0) DESC
-          WHEN $9::text = 'year' THEN COALESCE(r.year, 0) DESC
-          WHEN $9::text = 'name' THEN LOWER(r.name) ASC
-          ELSE r.total_relevance DESC, COALESCE(r.rating, 0) DESC, LOWER(r.name) ASC
-        END
-    ) AS row_num
+    CASE
+      WHEN $9::text = 'rating' THEN
+        ROW_NUMBER() OVER (ORDER BY COALESCE(r.rating, 0) DESC NULLS LAST, LOWER(r.name) ASC)
+      WHEN $9::text = 'year' THEN
+        ROW_NUMBER() OVER (ORDER BY COALESCE(r.year, 0) DESC NULLS LAST, COALESCE(r.rating, 0) DESC NULLS LAST, LOWER(r.name) ASC)
+      WHEN $9::text = 'name' THEN
+        ROW_NUMBER() OVER (ORDER BY LOWER(r.name) ASC, COALESCE(r.rating, 0) DESC NULLS LAST)
+      ELSE
+        ROW_NUMBER() OVER (ORDER BY r.total_relevance DESC, COALESCE(r.rating, 0) DESC NULLS LAST, LOWER(r.name) ASC)
+    END AS row_num
   FROM ranked r
 ),
 -- Get total count for pagination
