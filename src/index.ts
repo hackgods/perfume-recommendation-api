@@ -25,12 +25,24 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",")
+  
+  // Default allowed origins (production + localhost for dev)
+  const defaultOrigins = [
+    "https://perfumes.saurabhsuresh.com",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ];
+  
+  // Allow additional origins from environment variable
+  const envOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
     : [];
+  
+  const allowedOrigins = [...defaultOrigins, ...envOrigins];
 
   if (origin && allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
   }
 
   res.setHeader(
