@@ -31,9 +31,9 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy SQL files (needed at runtime) - ensure directory exists first
-RUN mkdir -p ./src/database/queries
-COPY --from=builder /app/src/database/queries/*.sql ./src/database/queries/
+# Copy SQL files (needed at runtime)
+RUN mkdir -p ./dist/database/queries
+COPY --from=builder /app/src/database/queries/*.sql ./dist/database/queries/
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
