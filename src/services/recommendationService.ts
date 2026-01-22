@@ -4,7 +4,6 @@ import {
   getPerfumeDna,
   getUserFingerprint,
   findClones,
-  CloneFinderResult,
 } from "../database/queries";
 import {
   SimilarPerfumesRequest,
@@ -248,7 +247,7 @@ export async function getUserTasteFingerprint(
 export async function findPerfumeClones(
   targetPerfumeId: number,
   limit: number = 3
-): Promise<CloneFinderResult[]> {
+): Promise<RecommendationResult[]> {
   // Validate perfume exists
   const checkResult = await pool.query("SELECT id, name FROM perfumes WHERE id = $1", [
     targetPerfumeId,
@@ -261,9 +260,55 @@ export async function findPerfumeClones(
   // Find clones
   const clones = await findClones(targetPerfumeId, limit);
 
-  // Add image URLs
-  return clones.map((clone) => ({
-    ...clone,
+  // Transform to RecommendationResult format
+  const results: RecommendationResult[] = clones.map((clone) => ({
+    id: clone.id,
+    name: clone.name,
+    brand: clone.brand,
+    year: clone.year,
+    description: clone.description || null,
+    perfumer: clone.perfumer || null,
+    gender: clone.gender || null,
+    accords: Array.isArray(clone.accords) ? clone.accords : [],
+    notes: Array.isArray(clone.notes_all) ? clone.notes_all : [],
     image: `https://fimgs.net/mdimg/perfume-thumbs/375x500.${clone.id}.2x.avif`,
+    score: Math.round(clone.clone_score * 1000) / 1000,
+    signals: {
+      sim: Math.round(clone.signals.embedding_sim * 1000) / 1000,
+      dna: Math.round(clone.signals.dna_overlap * 1000) / 1000,
+      ward: Math.round(clone.signals.wardrobe_score * 1000) / 1000,
+      qual: Math.round(
+        ((clone.rating || 0) / 5.0) *
+          (1.0 - Math.exp(-(clone.total_votes || 0) / 500.0)) *
+          1000
+      ) / 1000,
+      perf: Math.round(clone.signals.performance_sim * 1000) / 1000,
+    },
+    why: {
+      because_similar_to: targetPerfumeId, // The target perfume this is a clone of
+      shared_notes: Array.isArray(clone.why.shared_notes) ? clone.why.shared_notes : [],
+      shared_accords: Array.isArray(clone.why.shared_accords)
+        ? clone.why.shared_accords
+        : [],
+      wardrobe: clone.why.wardrobe_co_occur
+        ? [{ liked_id: targetPerfumeId, co_count: clone.why.wardrobe_co_occur }]
+        : [],
+      performance: clone.why.performance,
+    },
+    // Add confidence as metadata (not in RecommendationResult, but we'll add it)
+    // Actually, let's keep it simple and just match RecommendationResult exactly
   }));
+
+  // Fetch DNA cards for each clone
+  const resultsWithDna: RecommendationResult[] = await Promise.all(
+    results.map(async (result) => {
+      const dnaCard = await getPerfumeDnaCard(result.id);
+      return {
+        ...result,
+        dna_card: dnaCard || undefined,
+      };
+    })
+  );
+
+  return resultsWithDna;
 }
