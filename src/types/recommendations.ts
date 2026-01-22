@@ -48,8 +48,8 @@ export interface RecommendationResult {
 
 export interface DnaCard {
   families: Array<{ name: string; weight: number }>; // top 3
-  accords: Array<{ name: string; weight: number; percentage: number }>; // top 5
-  notes: Array<{ name: string; weight: number; percentage: number }>; // top 5
+  accords: Array<{ name: string; weight: number; percentage: number }>; // all accords
+  notes: Array<{ name: string; weight: number; percentage: number }>; // all notes
 }
 
 export interface MissingSuggestionPerfume {

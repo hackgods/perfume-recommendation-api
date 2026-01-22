@@ -1,5 +1,5 @@
 -- Get DNA card for a single perfume
--- Returns top 3 families, top 5 accords, and top 5 notes with weights/percentages
+-- Returns top 3 families, all accords, and all notes with weights/percentages
 --
 -- Input:
 --   $1 :: bigint   -- perfume_id
@@ -24,7 +24,7 @@ SELECT
     ) f
   ), '[]'::jsonb) AS families,
 
-  -- Top 5 accords with percentages
+  -- All accords with percentages
   COALESCE((
     WITH all_accords AS (
       SELECT
@@ -34,26 +34,20 @@ SELECT
     ),
     total_weight AS (
       SELECT SUM(weight) AS total FROM all_accords
-    ),
-    top_accords AS (
-      SELECT token, weight
-      FROM all_accords
-      ORDER BY weight DESC
-      LIMIT 5
     )
     SELECT jsonb_agg(
       jsonb_build_object(
-        'name', ta.token,
-        'weight', ta.weight,
-        'percentage', ROUND((ta.weight / NULLIF(tw.total, 0) * 100)::numeric, 1)
+        'name', aa.token,
+        'weight', aa.weight,
+        'percentage', ROUND((aa.weight / NULLIF(tw.total, 0) * 100)::numeric, 1)
       )
-      ORDER BY ta.weight DESC
+      ORDER BY aa.weight DESC
     )
-    FROM top_accords ta
+    FROM all_accords aa
     CROSS JOIN total_weight tw
   ), '[]'::jsonb) AS accords,
 
-  -- Top 5 notes with percentages
+  -- All notes with percentages
   COALESCE((
     WITH all_notes AS (
       SELECT
@@ -63,22 +57,16 @@ SELECT
     ),
     total_weight AS (
       SELECT SUM(weight) AS total FROM all_notes
-    ),
-    top_notes AS (
-      SELECT token, weight
-      FROM all_notes
-      ORDER BY weight DESC
-      LIMIT 5
     )
     SELECT jsonb_agg(
       jsonb_build_object(
-        'name', tn.token,
-        'weight', tn.weight,
-        'percentage', ROUND((tn.weight / NULLIF(tw.total, 0) * 100)::numeric, 1)
+        'name', an.token,
+        'weight', an.weight,
+        'percentage', ROUND((an.weight / NULLIF(tw.total, 0) * 100)::numeric, 1)
       )
-      ORDER BY tn.weight DESC
+      ORDER BY an.weight DESC
     )
-    FROM top_notes tn
+    FROM all_notes an
     CROSS JOIN total_weight tw
   ), '[]'::jsonb) AS notes
 

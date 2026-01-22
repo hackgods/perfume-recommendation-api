@@ -12,7 +12,7 @@ const router = Router();
  * /api/v1/perfumes/{id}/dna:
  *   get:
  *     summary: Get DNA card for a single perfume
- *     description: Returns top 3 families, top 5 accords, and top 5 notes with weights/percentages
+ *     description: Returns top 3 families, all accords, and all notes with weights/percentages
  *     tags: [Perfumes]
  *     parameters:
  *       - in: path

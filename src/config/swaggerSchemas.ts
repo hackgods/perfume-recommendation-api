@@ -404,7 +404,7 @@ export const swaggerSchemas = {
           },
           required: ["name", "weight", "percentage"],
         },
-        description: "Top 5 accords with percentages",
+        description: "All accords with percentages (sums to 100%)",
         example: [
           { name: "vanilla", weight: 0.18, percentage: 18.0 },
           { name: "amber", weight: 0.14, percentage: 14.0 },
@@ -431,7 +431,7 @@ export const swaggerSchemas = {
           },
           required: ["name", "weight", "percentage"],
         },
-        description: "Top 5 notes with percentages",
+        description: "All notes with percentages (sums to 100%)",
         example: [
           { name: "vanilla", weight: 0.2, percentage: 20.0 },
           { name: "benzoin", weight: 0.12, percentage: 12.0 },
