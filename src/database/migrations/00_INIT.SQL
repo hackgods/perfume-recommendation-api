@@ -9,6 +9,7 @@ BEGIN;
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS unaccent;
 
 -- 1) Core: perfumes
 

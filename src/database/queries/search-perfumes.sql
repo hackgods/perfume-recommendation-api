@@ -1,5 +1,6 @@
 -- Perfume search
 -- Supports: full-text search, filtering, pagination, sorting
+-- Note: Uses unaccent extension for accent-insensitive search (e.g., "Althair" matches "Althaïr")
 --
 -- Inputs:
 --   $1 :: text        -- search query (optional, searches name, brand, description)
@@ -42,38 +43,48 @@ filtered AS (
     -- Rating filter
     AND ($6::float IS NULL OR p.rating IS NULL OR p.rating >= $6::float)
 ),
--- Apply search query with relevance scoring
+-- Normalize search query (accent-insensitive)
+normalized_query AS (
+  SELECT 
+    CASE 
+      WHEN $1::text IS NULL OR length(trim($1::text)) = 0 THEN NULL
+      ELSE LOWER(unaccent(trim($1::text)))
+    END AS query_normalized
+),
+-- Apply search query with relevance scoring (accent-insensitive)
 searched AS (
   SELECT
     f.*,
     CASE
       -- If no search query, all results have same relevance
-      WHEN $1::text IS NULL OR length(trim($1::text)) = 0 THEN 1.0
-      -- Exact name match (highest priority)
-      WHEN LOWER(f.name) = LOWER(trim($1::text)) THEN 100.0
-      -- Name starts with query
-      WHEN LOWER(f.name) LIKE LOWER(trim($1::text)) || '%' THEN 50.0
-      -- Name contains query (as phrase)
-      WHEN LOWER(f.name) LIKE '%' || LOWER(trim($1::text)) || '%' THEN 30.0
-      -- Brand exact match
-      WHEN LOWER(f.brand) = LOWER(trim($1::text)) THEN 25.0
-      -- Brand contains query
-      WHEN LOWER(f.brand) LIKE '%' || LOWER(trim($1::text)) || '%' THEN 15.0
-      -- Description contains query (lower weight)
-      WHEN f.description IS NOT NULL AND LOWER(f.description) LIKE '%' || LOWER(trim($1::text)) || '%' THEN 5.0
+      WHEN nq.query_normalized IS NULL THEN 1.0
+      -- Exact name match (highest priority) - accent-insensitive
+      WHEN LOWER(unaccent(f.name)) = nq.query_normalized THEN 100.0
+      -- Name starts with query - accent-insensitive
+      WHEN LOWER(unaccent(f.name)) LIKE nq.query_normalized || '%' THEN 50.0
+      -- Name contains query (as phrase) - accent-insensitive
+      WHEN LOWER(unaccent(f.name)) LIKE '%' || nq.query_normalized || '%' THEN 30.0
+      -- Brand exact match - accent-insensitive
+      WHEN LOWER(unaccent(f.brand)) = nq.query_normalized THEN 25.0
+      -- Brand contains query - accent-insensitive
+      WHEN LOWER(unaccent(f.brand)) LIKE '%' || nq.query_normalized || '%' THEN 15.0
+      -- Description contains query (lower weight) - accent-insensitive
+      WHEN f.description IS NOT NULL AND LOWER(unaccent(f.description)) LIKE '%' || nq.query_normalized || '%' THEN 5.0
       -- No match
       ELSE 0.0
     END AS relevance_score,
-    -- Enhanced word-based matching for multi-word queries
+    -- Enhanced word-based matching for multi-word queries (accent-insensitive)
     COALESCE((
       WITH word_stats AS (
         SELECT
-          COUNT(*) FILTER (WHERE LOWER(f.name) LIKE '%' || w.word || '%') AS name_matches,
-          COUNT(*) FILTER (WHERE LOWER(f.brand) LIKE '%' || w.word || '%') AS brand_matches,
+          COUNT(*) FILTER (WHERE LOWER(unaccent(f.name)) LIKE '%' || w.word || '%') AS name_matches,
+          COUNT(*) FILTER (WHERE LOWER(unaccent(f.brand)) LIKE '%' || w.word || '%') AS brand_matches,
           COUNT(*) AS total_words,
           (array_agg(w.word ORDER BY w.ordinality))[1] AS first_word,
           (array_agg(w.word ORDER BY w.ordinality))[2] AS second_word
-        FROM unnest(string_to_array(LOWER(trim($1::text)), ' ')) WITH ORDINALITY AS w(word, ordinality)
+        FROM normalized_query nq2
+        CROSS JOIN unnest(string_to_array(nq2.query_normalized, ' ')) WITH ORDINALITY AS w(word, ordinality)
+        WHERE nq2.query_normalized IS NOT NULL
       )
       SELECT
         -- Bonus for matching ALL words (perfect match across name + brand)
@@ -91,7 +102,7 @@ searched AS (
         +
         -- Bonus if name contains the first word (usually most important, e.g., "elixir")
         CASE
-          WHEN ws.first_word IS NOT NULL AND LOWER(f.name) LIKE '%' || ws.first_word || '%' THEN 15.0
+          WHEN ws.first_word IS NOT NULL AND LOWER(unaccent(f.name)) LIKE '%' || ws.first_word || '%' THEN 15.0
           ELSE 0.0
         END
         +
@@ -99,15 +110,16 @@ searched AS (
         CASE
           WHEN ws.total_words >= 2 
             AND ws.first_word IS NOT NULL 
-            AND LOWER(f.name) LIKE '%' || ws.first_word || '%'
+            AND LOWER(unaccent(f.name)) LIKE '%' || ws.first_word || '%'
             AND ws.second_word IS NOT NULL
-            AND LOWER(f.brand) LIKE '%' || ws.second_word || '%'
+            AND LOWER(unaccent(f.brand)) LIKE '%' || ws.second_word || '%'
           THEN 25.0
           ELSE 0.0
         END
       FROM word_stats ws
     ), 0.0) AS word_match_bonus
   FROM filtered f
+  CROSS JOIN normalized_query nq
 ),
 -- Combine relevance scores
 ranked AS (
@@ -117,7 +129,7 @@ ranked AS (
   FROM searched s
   WHERE
     -- Only include results with some relevance if search query provided
-    ($1::text IS NULL OR length(trim($1::text)) = 0 OR s.relevance_score > 0 OR s.word_match_bonus > 0)
+    (s.relevance_score > 0 OR s.word_match_bonus > 0 OR s.relevance_score = 1.0)
 ),
 -- Apply sorting based on sort_by parameter
 sorted AS (
